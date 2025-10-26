@@ -35,12 +35,29 @@ export async function POST(request: NextRequest) {
 
   const readable = nodeStreamToWebReadable(documentStream as unknown as Readable);
 
-  const filename = (content.documentTitle || 'resume').replace(/\s+/g, '-').toLowerCase();
+  const baseTitle = (content.documentTitle || 'resume').trim() || 'resume';
+
+  const encodeRFC5987ValueChars = (str: string) =>
+    encodeURIComponent(str)
+      .replace(/['()]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+      .replace(/\*/g, '%2A');
+
+  const asciiFallback = baseTitle
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]+/g, '')
+    .replace(/[^a-zA-Z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+
+  const fallbackFilename = asciiFallback || 'resume';
+  const encodedFilename = encodeRFC5987ValueChars(`${baseTitle}.pdf`);
 
   return new NextResponse(readable, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}.pdf"`,
+      'Content-Disposition':
+        `attachment; filename="${fallbackFilename}.pdf"; filename*=UTF-8''${encodedFilename}`,
     },
   });
 }
