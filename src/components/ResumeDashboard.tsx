@@ -201,14 +201,38 @@ const DASHBOARD_MENU: { id: DashboardSection; label: string; description: string
   { id: 'settings', label: 'Settings', description: 'Manage account and workspace.' },
 ];
 
+const LANGUAGE_OPTIONS = [
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'zh', label: 'Chinese (Simplified)' },
+] as const;
+
+function formatLanguageLabel(value?: string) {
+  const match = LANGUAGE_OPTIONS.find((option) => option.value === value);
+  if (match) {
+    return match.label;
+  }
+  if (value && value.trim().length > 0) {
+    return value;
+  }
+  return 'English';
+}
+
 export function ResumeDashboard() {
   const { user, profile, refreshProfile } = useAuth();
   const [drafts, setDrafts] = useState<ResumeDraft[]>([]);
   const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
   const [form, setForm] = useState<DraftFormState>(() => {
     const definition = getResumeTemplateDefinition(defaultTemplateId);
+    const defaultContent = deepClone(
+      definition?.defaultContent ?? resumeTemplateDefinitions['aria-stark'].defaultContent
+    );
     return {
-      ...deepClone(definition?.defaultContent ?? resumeTemplateDefinitions['aria-stark'].defaultContent),
+      ...defaultContent,
+      language: defaultContent.language ?? 'en',
       templateId: definition?.id ?? defaultTemplateId,
     };
   });
@@ -297,6 +321,7 @@ export function ResumeDashboard() {
             ownerId: (data.ownerId as string) ?? user.uid,
             templateId,
             documentTitle: (data.documentTitle as string) ?? definition.defaultContent.documentTitle,
+            language: (data.language as string | undefined) ?? definition.defaultContent.language ?? 'en',
             profile: (data.profile as ResumeDraftContent['profile']) ?? definition.defaultContent.profile,
             summary: (data.summary as string | undefined) ?? definition.defaultContent.summary,
             objective: (data.objective as string | undefined) ?? definition.defaultContent.objective,
@@ -344,12 +369,18 @@ export function ResumeDashboard() {
 
   const resumeDrafts = drafts.filter((draft) => getResumeTemplateDefinition(draft.templateId)?.kind === 'resume');
 
+  const isCustomLanguage = !LANGUAGE_OPTIONS.some((option) => option.value === form.language);
+  const selectedLanguageValue = isCustomLanguage ? 'custom' : form.language;
+
   const hydrateFromTemplate = (templateId: string) => {
     const definition = getResumeTemplateDefinition(templateId);
     if (!definition) return;
 
+    const content = deepClone(definition.defaultContent);
+
     setForm({
-      ...deepClone(definition.defaultContent),
+      ...content,
+      language: content.language ?? 'en',
       templateId: definition.id,
       id: undefined,
     });
@@ -370,10 +401,12 @@ export function ResumeDashboard() {
       const data = snapshot.data();
       const templateId = (data.templateId as string) ?? defaultTemplateId;
       const definition = getResumeTemplateDefinition(templateId) ?? resumeTemplateDefinitions[defaultTemplateId];
+      const language = (data.language as string | undefined) ?? definition.defaultContent.language ?? 'en';
 
       setForm({
         templateId,
         id: draftId,
+        language,
         documentTitle: (data.documentTitle as string) ?? definition.defaultContent.documentTitle,
         profile: (data.profile as ResumeDraftContent['profile']) ?? definition.defaultContent.profile,
         summary: (data.summary as string | undefined) ?? definition.defaultContent.summary,
@@ -433,6 +466,20 @@ export function ResumeDashboard() {
     });
   };
 
+  const handleLanguageSelectChange = (value: string) => {
+    setForm((previous) => {
+      const nextLanguage =
+        value === 'custom'
+          ? LANGUAGE_OPTIONS.some((option) => option.value === previous.language) ? '' : previous.language
+          : value;
+      return { ...previous, language: nextLanguage };
+    });
+  };
+
+  const handleCustomLanguageChange = (value: string) => {
+    setForm((previous) => ({ ...previous, language: value }));
+  };
+
   const saveDraft = async () => {
     if (!user) return;
     if (!form.documentTitle.trim()) {
@@ -445,6 +492,7 @@ export function ResumeDashboard() {
         ownerId: user.uid,
         templateId: form.templateId,
         documentTitle: form.documentTitle,
+        language: form.language || 'en',
         profile: form.profile,
         summary: form.summary ?? '',
         objective: form.objective ?? '',
@@ -693,6 +741,9 @@ export function ResumeDashboard() {
                 <p style={{ margin: '0.35rem 0 0', color: '#475569' }}>
                   Reviewing the {selectedTemplateDefinition.name} layout with your latest edits.
                 </p>
+                <p style={{ margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.95rem' }}>
+                  Language: {formatLanguageLabel(form.language)}
+                </p>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <button
@@ -863,7 +914,7 @@ export function ResumeDashboard() {
                         <div style={{ fontWeight: 600 }}>{draft.documentTitle}</div>
                         <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
                           {getResumeTemplateDefinition(draft.templateId)?.name ?? 'Custom'} ·{' '}
-                          {draft.updatedAt.toLocaleDateString()}
+                          {draft.updatedAt.toLocaleDateString()} · {formatLanguageLabel(draft.language)}
                         </div>
                       </button>
                     </li>
@@ -887,6 +938,35 @@ export function ResumeDashboard() {
                     placeholder="e.g. Technical Writer Resume"
                   />
                 </label>
+
+                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span>Language</span>
+                  <select
+                    value={selectedLanguageValue}
+                    onChange={(event) => handleLanguageSelectChange(event.target.value)}
+                    style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', border: '1px solid #cbd5f5' }}
+                  >
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+
+                {isCustomLanguage && (
+                  <label style={{ display: 'grid', gap: '0.35rem' }}>
+                    <span>Custom language</span>
+                    <input
+                      type="text"
+                      value={form.language}
+                      onChange={(event) => handleCustomLanguageChange(event.target.value)}
+                      style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', border: '1px solid #cbd5f5' }}
+                      placeholder="e.g. 日本語 or Portuguese"
+                    />
+                  </label>
+                )}
 
                 <div style={{ display: 'grid', gap: '0.75rem', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '0.9rem' }}>
                   <strong>Profile</strong>
@@ -1451,7 +1531,8 @@ export function ResumeDashboard() {
                           <div>
                             <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
                             <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                              {(definition?.name ?? 'Custom template') + ' · Updated ' + draft.updatedAt.toLocaleDateString()}
+                              {definition?.name ?? 'Custom template'} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
+                              {formatLanguageLabel(draft.language)}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '0.75rem' }}>

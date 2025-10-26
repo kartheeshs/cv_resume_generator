@@ -13,6 +13,7 @@ export interface ResumeTemplateDefinition extends ResumeTemplate {
 
 const ariaContent: ResumeDraftContent = {
   documentTitle: 'Aria Stark Resume',
+  language: 'en',
   profile: {
     fullName: 'Aria Stark',
     role: 'Technical Writer',
@@ -77,6 +78,7 @@ const ariaContent: ResumeDraftContent = {
 
 const sashaContent: ResumeDraftContent = {
   documentTitle: 'Sasha Wagner Resume',
+  language: 'en',
   profile: {
     fullName: 'Sasha Wagner',
     role: 'Digital Marketing Analyst',
@@ -166,6 +168,7 @@ const sashaContent: ResumeDraftContent = {
 
 const samanthaContent: ResumeDraftContent = {
   documentTitle: 'Samantha Carter Resume',
+  language: 'en',
   profile: {
     fullName: 'Samantha L. Carter',
     role: 'Nursing Student',
@@ -253,6 +256,7 @@ const samanthaContent: ResumeDraftContent = {
 
 const catherineContent: ResumeDraftContent = {
   documentTitle: 'Catherine Barnett Resume',
+  language: 'en',
   profile: {
     fullName: 'Catherine Barnett',
     role: '3D Character Animator',
@@ -342,6 +346,7 @@ const catherineContent: ResumeDraftContent = {
 
 const japaneseContent: ResumeDraftContent = {
   documentTitle: '山田太郎 履歴書',
+  language: 'ja',
   profile: {
     fullName: '山田 太郎',
     role: '営業職 志望',

@@ -59,6 +59,7 @@ export interface CertificationEntry {
 
 export interface ResumeDraftContent {
   documentTitle: string;
+  language: string;
   profile: ProfileInfo;
   summary?: string;
   objective?: string;
