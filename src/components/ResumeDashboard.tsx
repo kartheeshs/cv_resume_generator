@@ -615,13 +615,13 @@ export function ResumeDashboard() {
     }));
 
   return (
-    <section style={{ padding: '2rem 1.5rem' }}>
+    <section style={{ padding: '1.5rem 1rem' }}>
       <div
         style={{
-          maxWidth: '1200px',
+          maxWidth: '1280px',
           margin: '0 auto',
           display: 'grid',
-          gap: '2rem',
+          gap: '1.5rem',
           gridTemplateColumns: '260px 1fr',
           alignItems: 'start',
         }}
@@ -670,7 +670,7 @@ export function ResumeDashboard() {
             })}
           </div>
         </aside>
-        <div style={{ display: 'grid', gap: '2rem' }}>
+        <div style={{ display: 'grid', gap: '1.75rem' }}>
           {activeSection === 'resume' && (
             <>
               <div
@@ -722,9 +722,9 @@ export function ResumeDashboard() {
               background: '#fff',
               borderRadius: '1rem',
               border: '1px solid #e2e8f0',
-              padding: '2rem',
+              padding: '1.5rem',
               display: 'grid',
-              gap: '2rem',
+              gap: '1.5rem',
             }}
           >
             <div
@@ -795,11 +795,11 @@ export function ResumeDashboard() {
                 background: '#f8fafc',
                 borderRadius: '1rem',
                 border: '1px solid #e2e8f0',
-                padding: '2rem',
+                padding: '1.25rem',
                 overflowX: 'auto',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '0 0.5rem' }}>
                 {selectedTemplateDefinition.renderPreview(form)}
               </div>
             </div>
