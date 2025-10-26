@@ -29,7 +29,12 @@ import {
   ResumeTemplate,
   SkillGroup,
 } from '@/types/resume';
-import { getResumeTemplateDefinition, resumeTemplateDefinitions, resumeTemplateMetadata } from '@/templates/resume/definitions';
+import {
+  ResumeTemplateDefinition,
+  getResumeTemplateDefinition,
+  resumeTemplateDefinitions,
+  resumeTemplateMetadata,
+} from '@/templates/resume/definitions';
 
 interface DraftFormState extends ResumeDraftContent {
   id?: string;
@@ -167,6 +172,8 @@ function parseCertifications(value: unknown, fallback: CertificationEntry[]): Ce
 }
 
 const defaultTemplateId = 'aria-stark';
+const TEMPLATE_THUMBNAIL_WIDTH = 900;
+const TEMPLATE_THUMBNAIL_SCALE = 0.28;
 
 export function ResumeDashboard() {
   const { user, profile, refreshProfile } = useAuth();
@@ -182,6 +189,7 @@ export function ResumeDashboard() {
   const [status, setStatus] = useState<string | null>(null);
   const [loadingDrafts, setLoadingDrafts] = useState(true);
   const [activeKind, setActiveKind] = useState<'resume' | 'cv'>('resume');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
 
   const entitlements = profile?.entitlements;
 
@@ -289,6 +297,25 @@ export function ResumeDashboard() {
     [form.templateId]
   );
 
+  const resumeTemplates = useMemo(
+    () =>
+      templates
+        .filter((template) => template.kind === 'resume')
+        .map((template) => ({
+          template,
+          definition: getResumeTemplateDefinition(template.id),
+        }))
+        .filter(
+          (
+            entry,
+          ): entry is {
+            template: ResumeTemplate;
+            definition: ResumeTemplateDefinition;
+          } => Boolean(entry.definition)
+        ),
+    [templates]
+  );
+
   const resumeDrafts = drafts.filter((draft) => getResumeTemplateDefinition(draft.templateId)?.kind === 'resume');
 
   const hydrateFromTemplate = (templateId: string) => {
@@ -300,6 +327,7 @@ export function ResumeDashboard() {
       templateId: definition.id,
       id: undefined,
     });
+    setViewMode('edit');
     setStatus(`Loaded the ${definition.name} template.`);
   };
 
@@ -329,6 +357,7 @@ export function ResumeDashboard() {
         listSections: parseListSections(data.listSections, definition.defaultContent.listSections),
         certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
       });
+      setViewMode('edit');
       setStatus('Draft loaded into the editor.');
     } catch (error) {
       console.error(error);
@@ -478,6 +507,7 @@ export function ResumeDashboard() {
       templateId: definition.id,
       id: undefined,
     });
+    setViewMode('edit');
     setStatus('Editor reset to template defaults.');
   };
 
@@ -554,33 +584,171 @@ export function ResumeDashboard() {
       </div>
 
       {activeKind === 'resume' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+        viewMode === 'preview' ? (
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '1rem',
+              border: '1px solid #e2e8f0',
+              padding: '2rem',
+              display: 'grid',
+              gap: '2rem',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Preview</h2>
+                <p style={{ margin: '0.35rem 0 0', color: '#475569' }}>
+                  Reviewing the {selectedTemplateDefinition.name} layout with your latest edits.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('edit')}
+                  style={{
+                    padding: '0.75rem 1.35rem',
+                    borderRadius: '0.85rem',
+                    border: '1px solid #cbd5f5',
+                    background: '#f8fafc',
+                    color: '#1d4ed8',
+                    fontWeight: 600,
+                  }}
+                >
+                  Back to editing
+                </button>
+                <button
+                  type="button"
+                  onClick={saveDraft}
+                  style={{
+                    padding: '0.75rem 1.35rem',
+                    borderRadius: '0.85rem',
+                    border: 'none',
+                    background: '#1d4ed8',
+                    color: '#fff',
+                    fontWeight: 600,
+                  }}
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  onClick={generatePdf}
+                  style={{
+                    padding: '0.75rem 1.35rem',
+                    borderRadius: '0.85rem',
+                    border: '1px solid #0f172a',
+                    background: '#0f172a',
+                    color: '#fff',
+                    fontWeight: 600,
+                  }}
+                >
+                  Download PDF
+                </button>
+              </div>
+            </div>
+            <div
+              style={{
+                background: '#f8fafc',
+                borderRadius: '1rem',
+                border: '1px solid #e2e8f0',
+                padding: '2rem',
+                overflowX: 'auto',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                {selectedTemplateDefinition.renderPreview(form)}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
           <aside style={{ display: 'grid', gap: '1.5rem' }}>
             <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.25rem' }}>
-              <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>Templates</h2>
-              <p style={{ marginTop: '0.25rem', color: '#64748b' }}>Pick a resume layout to preload the editor with matching sections.</p>
-              <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
-                {templates
-                  .filter((template) => template.kind === 'resume')
-                  .map((template) => (
-                    <button
-                      key={template.id}
-                      type="button"
-                      onClick={() => hydrateFromTemplate(template.id)}
-                      style={{
-                        display: 'grid',
-                        gap: '0.35rem',
-                        padding: '0.9rem 1rem',
-                        borderRadius: '0.9rem',
-                        border: template.id === form.templateId ? `2px solid ${template.accentColor}` : '1px solid #cbd5f5',
-                        background: '#fff',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{template.name}</span>
-                      <span style={{ fontSize: '0.85rem', color: '#64748b' }}>{template.description}</span>
-                    </button>
-                  ))}
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>Templates</h2>
+                <p style={{ margin: 0, color: '#64748b' }}>Preview layouts before loading them into your editor.</p>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gap: '1rem',
+                  marginTop: '1.25rem',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                }}
+              >
+                {resumeTemplates.length === 0 ? (
+                  <p style={{ color: '#94a3b8', gridColumn: '1 / -1' }}>Templates are still loading…</p>
+                ) : (
+                  resumeTemplates.map(({ template, definition }) => {
+                    const isActive = template.id === form.templateId;
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => hydrateFromTemplate(template.id)}
+                        style={{
+                          display: 'grid',
+                          gap: '0.85rem',
+                          padding: '1rem',
+                          borderRadius: '1rem',
+                          border: `2px solid ${isActive ? template.accentColor : '#dbeafe'}`,
+                          background: '#fff',
+                          textAlign: 'left',
+                          boxShadow: isActive
+                            ? '0 18px 40px rgba(15, 23, 42, 0.18)'
+                            : '0 12px 24px rgba(15, 23, 42, 0.05)',
+                          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: 'relative',
+                            width: '100%',
+                            paddingBottom: '135%',
+                            borderRadius: '0.85rem',
+                            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: 'absolute',
+                              inset: '18px',
+                              borderRadius: '0.75rem',
+                              background: '#fff',
+                              overflow: 'hidden',
+                              display: 'flex',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <div
+                              style={{
+                                transform: `scale(${TEMPLATE_THUMBNAIL_SCALE})`,
+                                transformOrigin: 'top center',
+                                width: TEMPLATE_THUMBNAIL_WIDTH,
+                              }}
+                            >
+                              {definition.renderPreview(definition.defaultContent)}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gap: '0.25rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '1rem' }}>{template.name}</span>
+                          <span style={{ fontSize: '0.9rem', color: '#64748b' }}>{template.description}</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </section>
 
@@ -1097,18 +1265,42 @@ export function ResumeDashboard() {
 
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                   <button
+                    type="button"
                     onClick={saveDraft}
                     style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: 'none', background: '#1d4ed8', color: '#fff', fontWeight: 600 }}
                   >
                     Save draft
                   </button>
                   <button
+                    type="button"
+                    onClick={() => setViewMode('preview')}
+                    style={{
+                      padding: '0.75rem 1.25rem',
+                      borderRadius: '0.75rem',
+                      border: '1px solid #1d4ed8',
+                      background: '#fff',
+                      color: '#1d4ed8',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Preview resume
+                  </button>
+                  <button
+                    type="button"
                     onClick={generatePdf}
-                    style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: '1px solid #0f172a', background: '#fff', color: '#0f172a', fontWeight: 600 }}
+                    style={{
+                      padding: '0.75rem 1.25rem',
+                      borderRadius: '0.75rem',
+                      border: '1px solid #0f172a',
+                      background: '#0f172a',
+                      color: '#fff',
+                      fontWeight: 600,
+                    }}
                   >
                     Generate PDF
                   </button>
                   <button
+                    type="button"
                     onClick={resetForm}
                     style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: 'none', background: '#e2e8f0', color: '#0f172a', fontWeight: 600 }}
                   >
@@ -1117,20 +1309,9 @@ export function ResumeDashboard() {
                 </div>
               </div>
             </section>
-
-            <section style={{ background: '#f8fafc', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h2 style={{ margin: 0 }}>Live preview</h2>
-                <span style={{ color: '#64748b' }}>{selectedTemplateDefinition.name}</span>
-              </div>
-              <div style={{ overflowX: 'auto', padding: '1rem', background: '#e2e8f0', borderRadius: '0.9rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  {selectedTemplateDefinition.renderPreview(form)}
-                </div>
-              </div>
-            </section>
           </main>
         </div>
+        )
       ) : (
         <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '2rem', textAlign: 'center' }}>
           <h2 style={{ margin: 0 }}>Curriculum Vitae builder</h2>
