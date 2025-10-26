@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { cloneElement, isValidElement, useEffect, useMemo, useState } from 'react';
 import {
   Timestamp,
   addDoc,
@@ -47,6 +47,22 @@ function deepClone<T>(value: T): T {
     return clone(value);
   }
   return JSON.parse(JSON.stringify(value));
+}
+
+function renderTemplateThumbnail(definition: ResumeTemplateDefinition) {
+  const preview = definition.renderPreview(definition.defaultContent);
+  if (isValidElement(preview)) {
+    return cloneElement(preview, {
+      style: {
+        ...(preview.props.style ?? {}),
+        margin: 0,
+        width: '100%',
+        maxWidth: '100%',
+        height: '100%',
+      },
+    });
+  }
+  return preview;
 }
 
 function createId(prefix: string) {
@@ -172,8 +188,18 @@ function parseCertifications(value: unknown, fallback: CertificationEntry[]): Ce
 }
 
 const defaultTemplateId = 'aria-stark';
-const TEMPLATE_THUMBNAIL_WIDTH = 900;
-const TEMPLATE_THUMBNAIL_SCALE = 0.28;
+const TEMPLATE_THUMBNAIL_WIDTH = 864;
+const TEMPLATE_THUMBNAIL_HEIGHT = 1120;
+const TEMPLATE_THUMBNAIL_SCALE = 0.23;
+type DashboardSection = 'resume' | 'cv' | 'drafts' | 'downloads' | 'settings';
+
+const DASHBOARD_MENU: { id: DashboardSection; label: string; description: string }[] = [
+  { id: 'resume', label: 'Resumes', description: 'Design and export tailored resumes.' },
+  { id: 'cv', label: 'CVs', description: 'Long-form curriculum vitae layouts.' },
+  { id: 'drafts', label: 'Drafts', description: 'Revisit saved work in progress.' },
+  { id: 'downloads', label: 'Downloads', description: 'Track generated PDF files.' },
+  { id: 'settings', label: 'Settings', description: 'Manage account and workspace.' },
+];
 
 export function ResumeDashboard() {
   const { user, profile, refreshProfile } = useAuth();
@@ -188,7 +214,7 @@ export function ResumeDashboard() {
   });
   const [status, setStatus] = useState<string | null>(null);
   const [loadingDrafts, setLoadingDrafts] = useState(true);
-  const [activeKind, setActiveKind] = useState<'resume' | 'cv'>('resume');
+  const [activeSection, setActiveSection] = useState<DashboardSection>('resume');
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
 
   const entitlements = profile?.entitlements;
@@ -329,6 +355,7 @@ export function ResumeDashboard() {
     });
     setViewMode('edit');
     setStatus(`Loaded the ${definition.name} template.`);
+    setActiveSection('resume');
   };
 
   const hydrateFromDraft = async (draftId: string) => {
@@ -359,6 +386,7 @@ export function ResumeDashboard() {
       });
       setViewMode('edit');
       setStatus('Draft loaded into the editor.');
+      setActiveSection('resume');
     } catch (error) {
       console.error(error);
       setStatus('Unable to load draft.');
@@ -539,51 +567,108 @@ export function ResumeDashboard() {
     }));
 
   return (
-    <section style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '2rem', background: '#fff', padding: '1.5rem', borderRadius: '1rem', border: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+    <section style={{ padding: '2rem 1.5rem' }}>
+      <div
+        style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'grid',
+          gap: '2rem',
+          gridTemplateColumns: '260px 1fr',
+          alignItems: 'start',
+        }}
+      >
+        <aside
+          style={{
+            background: '#fff',
+            borderRadius: '1rem',
+            border: '1px solid #e2e8f0',
+            padding: '1.5rem',
+            display: 'grid',
+            gap: '1.25rem',
+            position: 'sticky',
+            top: '6rem',
+            height: 'fit-content',
+          }}
+        >
           <div>
-            <h1 style={{ margin: 0, fontSize: '2rem' }}>Documents</h1>
-            <p style={{ margin: '0.35rem 0 0', color: '#475569' }}>
-              Craft resumes and CVs with production-ready templates. Select a template to start editing and export polished PDFs.
-            </p>
+            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Workspace</h2>
+            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>Switch between tools and resources.</p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-            {(['resume', 'cv'] as const).map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                onClick={() => setActiveKind(kind)}
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {DASHBOARD_MENU.map((item) => {
+              const isActive = item.id === activeSection;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveSection(item.id)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '0.9rem 1rem',
+                    borderRadius: '0.85rem',
+                    border: isActive ? '1px solid #1d4ed8' : '1px solid #e2e8f0',
+                    background: isActive ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc',
+                    color: isActive ? '#fff' : '#0f172a',
+                    boxShadow: isActive ? '0 16px 32px rgba(37, 99, 235, 0.2)' : 'none',
+                  }}
+                >
+                  <div style={{ fontWeight: 700 }}>{item.label}</div>
+                  <div style={{ fontSize: '0.85rem', color: isActive ? 'rgba(255,255,255,0.85)' : '#64748b' }}>
+                    {item.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+        <div style={{ display: 'grid', gap: '2rem' }}>
+          {activeSection === 'resume' && (
+            <>
+              <div
                 style={{
-                  padding: '0.65rem 1.1rem',
-                  borderRadius: '9999px',
-                  border: kind === activeKind ? '1px solid #1d4ed8' : '1px solid #cbd5f5',
-                  background: kind === activeKind ? '#1d4ed8' : '#fff',
-                  color: kind === activeKind ? '#fff' : '#1d4ed8',
-                  fontWeight: 600,
+                  background: '#fff',
+                  borderRadius: '1rem',
+                  border: '1px solid #e2e8f0',
+                  padding: '1.75rem',
+                  display: 'grid',
+                  gap: '1.5rem',
                 }}
               >
-                {kind === 'resume' ? 'Resume builder' : 'CV (coming soon)'}
-              </button>
-            ))}
-          </div>
-        </div>
-        {entitlements && (
-          <div style={{ marginTop: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#eef2ff', minWidth: '200px' }}>
-              <strong>Plan</strong>
-              <div style={{ fontSize: '1.2rem' }}>{entitlements.plan.toUpperCase()}</div>
-            </div>
-            <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#ecfeff', minWidth: '200px' }}>
-              <strong>Downloads left</strong>
-              <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
-            </div>
-          </div>
-        )}
-        {status && <p style={{ marginTop: '1rem', color: '#2563eb' }}>{status}</p>}
-      </div>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '2rem' }}>Resume workspace</h1>
+                  <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                    Craft resumes with production-ready templates, edit every section, and export polished PDFs.
+                  </p>
+                </div>
+                {entitlements && (
+                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#eef2ff', minWidth: '200px' }}>
+                      <strong>Plan</strong>
+                      <div style={{ fontSize: '1.2rem' }}>{entitlements.plan.toUpperCase()}</div>
+                    </div>
+                    <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#ecfeff', minWidth: '200px' }}>
+                      <strong>Downloads left</strong>
+                      <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
+                    </div>
+                  </div>
+                )}
+                {status && (
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.75rem',
+                      background: '#eff6ff',
+                      color: '#1d4ed8',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {status}
+                  </div>
+                )}
+              </div>
 
-      {activeKind === 'resume' ? (
+              {viewMode === 'preview' ? (
         viewMode === 'preview' ? (
           <div
             style={{
@@ -618,12 +703,12 @@ export function ResumeDashboard() {
                     padding: '0.75rem 1.35rem',
                     borderRadius: '0.85rem',
                     border: '1px solid #cbd5f5',
-                    background: '#f8fafc',
+                    background: '#fff',
                     color: '#1d4ed8',
                     fontWeight: 600,
                   }}
                 >
-                  Back to editing
+                  Return to editor
                 </button>
                 <button
                   type="button"
@@ -631,9 +716,9 @@ export function ResumeDashboard() {
                   style={{
                     padding: '0.75rem 1.35rem',
                     borderRadius: '0.85rem',
-                    border: 'none',
-                    background: '#1d4ed8',
-                    color: '#fff',
+                    border: '1px solid #0f172a',
+                    background: '#fff',
+                    color: '#0f172a',
                     fontWeight: 600,
                   }}
                 >
@@ -670,9 +755,9 @@ export function ResumeDashboard() {
             </div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '1.5rem', alignItems: 'start' }}>
-          <aside style={{ display: 'grid', gap: '1.5rem' }}>
-            <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1.75rem', alignItems: 'start' }}>
+            <aside style={{ display: 'grid', gap: '1.5rem' }}>
+            <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
               <div style={{ display: 'grid', gap: '0.5rem' }}>
                 <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>Templates</h2>
                 <p style={{ margin: 0, color: '#64748b' }}>Preview layouts before loading them into your editor.</p>
@@ -680,13 +765,12 @@ export function ResumeDashboard() {
               <div
                 style={{
                   display: 'grid',
-                  gap: '1rem',
-                  marginTop: '1.25rem',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '1.1rem',
+                  marginTop: '1.5rem',
                 }}
               >
                 {resumeTemplates.length === 0 ? (
-                  <p style={{ color: '#94a3b8', gridColumn: '1 / -1' }}>Templates are still loading…</p>
+                  <p style={{ color: '#94a3b8' }}>Templates are still loading…</p>
                 ) : (
                   resumeTemplates.map(({ template, definition }) => {
                     const isActive = template.id === form.templateId;
@@ -709,38 +793,41 @@ export function ResumeDashboard() {
                           transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                         }}
                       >
-                        <div
-                          style={{
-                            position: 'relative',
-                            width: '100%',
-                            paddingBottom: '135%',
-                            borderRadius: '0.85rem',
-                            background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-                            overflow: 'hidden',
-                          }}
-                        >
                           <div
                             style={{
-                              position: 'absolute',
-                              inset: '18px',
-                              borderRadius: '0.75rem',
-                              background: '#fff',
+                              position: 'relative',
+                              width: '100%',
+                              aspectRatio: '3 / 4',
+                              borderRadius: '0.85rem',
+                              background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                               overflow: 'hidden',
-                              display: 'flex',
-                              justifyContent: 'center',
                             }}
                           >
                             <div
                               style={{
-                                transform: `scale(${TEMPLATE_THUMBNAIL_SCALE})`,
-                                transformOrigin: 'top center',
-                                width: TEMPLATE_THUMBNAIL_WIDTH,
+                                position: 'absolute',
+                                inset: '12px',
+                                borderRadius: '0.75rem',
+                                background: '#fff',
+                                overflow: 'hidden',
                               }}
                             >
-                              {definition.renderPreview(definition.defaultContent)}
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  width: TEMPLATE_THUMBNAIL_WIDTH,
+                                  height: TEMPLATE_THUMBNAIL_HEIGHT,
+                                  transform: `scale(${TEMPLATE_THUMBNAIL_SCALE})`,
+                                  transformOrigin: 'top left',
+                                  pointerEvents: 'none',
+                                }}
+                              >
+                                {renderTemplateThumbnail(definition)}
+                              </div>
                             </div>
                           </div>
-                        </div>
                         <div style={{ display: 'grid', gap: '0.25rem' }}>
                           <span style={{ fontWeight: 700, fontSize: '1rem' }}>{template.name}</span>
                           <span style={{ fontSize: '0.9rem', color: '#64748b' }}>{template.description}</span>
@@ -752,7 +839,7 @@ export function ResumeDashboard() {
               </div>
             </section>
 
-            <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.25rem' }}>
+            <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
               <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>Saved drafts</h2>
               {loadingDrafts ? (
                 <p style={{ color: '#64748b' }}>Loading your drafts…</p>
@@ -785,9 +872,9 @@ export function ResumeDashboard() {
                 </ul>
               )}
             </section>
-          </aside>
+            </aside>
 
-          <main style={{ display: 'grid', gap: '1.5rem' }}>
+            <main style={{ display: 'grid', gap: '1.5rem' }}>
             <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
               <h2 style={{ marginTop: 0 }}>Resume editor</h2>
               <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
@@ -1267,7 +1354,7 @@ export function ResumeDashboard() {
                   <button
                     type="button"
                     onClick={saveDraft}
-                    style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: 'none', background: '#1d4ed8', color: '#fff', fontWeight: 600 }}
+                    style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: '1px solid #0f172a', background: '#fff', color: '#0f172a', fontWeight: 600 }}
                   >
                     Save draft
                   </button>
@@ -1278,8 +1365,8 @@ export function ResumeDashboard() {
                       padding: '0.75rem 1.25rem',
                       borderRadius: '0.75rem',
                       border: '1px solid #1d4ed8',
-                      background: '#fff',
-                      color: '#1d4ed8',
+                      background: '#1d4ed8',
+                      color: '#fff',
                       fontWeight: 600,
                     }}
                   >
@@ -1309,17 +1396,186 @@ export function ResumeDashboard() {
                 </div>
               </div>
             </section>
-          </main>
-        </div>
-        )
-      ) : (
-        <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '2rem', textAlign: 'center' }}>
-          <h2 style={{ margin: 0 }}>Curriculum Vitae builder</h2>
-          <p style={{ marginTop: '0.75rem', color: '#64748b' }}>
-            CV layouts are coming soon. In the meantime, continue refining your resumes with the templates above.
-          </p>
-        </section>
+            </main>
+          </div>
       )}
+    </>
+  )}
+          {activeSection === 'cv' && (
+            <section
+              style={{
+                background: '#fff',
+                borderRadius: '1rem',
+                border: '1px solid #e2e8f0',
+                padding: '2rem',
+                textAlign: 'center',
+              }}
+            >
+              <h2 style={{ margin: 0 }}>Curriculum Vitae builder</h2>
+              <p style={{ marginTop: '0.75rem', color: '#64748b' }}>
+                CV layouts are in development. You&apos;ll be able to craft multi-page academic profiles soon.
+              </p>
+            </section>
+          )}
+          {activeSection === 'drafts' && (
+            <section
+              style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.5rem' }}
+            >
+              <div>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Saved drafts</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                  Continue where you left off. Pick a draft to jump back into the editor or open a quick preview.
+                </p>
+              </div>
+              {loadingDrafts ? (
+                <p style={{ color: '#64748b' }}>Loading your drafts…</p>
+              ) : resumeDrafts.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No drafts yet. Save a resume from the editor to see it listed here.</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '1rem' }}>
+                  {resumeDrafts.map((draft) => {
+                    const definition = getResumeTemplateDefinition(draft.templateId);
+                    return (
+                      <li key={draft.id}>
+                        <div
+                          style={{
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '0.9rem',
+                            padding: '1rem 1.25rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '1rem',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
+                            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                              {(definition?.name ?? 'Custom template') + ' · Updated ' + draft.updatedAt.toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await hydrateFromDraft(draft.id);
+                                setActiveSection('resume');
+                                setViewMode('edit');
+                              }}
+                              style={{
+                                padding: '0.6rem 1.1rem',
+                                borderRadius: '0.75rem',
+                                border: '1px solid #0f172a',
+                                background: '#fff',
+                                color: '#0f172a',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await hydrateFromDraft(draft.id);
+                                setActiveSection('resume');
+                                setViewMode('preview');
+                              }}
+                              style={{
+                                padding: '0.6rem 1.1rem',
+                                borderRadius: '0.75rem',
+                                border: '1px solid #1d4ed8',
+                                background: '#1d4ed8',
+                                color: '#fff',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Preview
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          )}
+          {activeSection === 'downloads' && (
+            <section
+              style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}
+            >
+              <div>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Downloads</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                  Generated PDFs will appear here after you create them from the editor.
+                </p>
+              </div>
+              <div style={{ padding: '1rem', borderRadius: '0.85rem', border: '1px dashed #cbd5f5', background: '#f8fafc' }}>
+                <p style={{ margin: 0, color: '#64748b' }}>
+                  No downloads yet. Use the <strong>Generate PDF</strong> button inside the resume editor to create your first
+                  file.
+                </p>
+              </div>
+              {entitlements && (
+                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#ecfeff', minWidth: '200px' }}>
+                    <strong>Downloads remaining</strong>
+                    <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
+                  </div>
+                  <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#eef2ff', minWidth: '200px' }}>
+                    <strong>Plan</strong>
+                    <div style={{ fontSize: '1.2rem' }}>{entitlements.plan.toUpperCase()}</div>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+          {activeSection === 'settings' && (
+            <section
+              style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.5rem' }}
+            >
+              <div>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Settings</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                  Manage your account details and workspace preferences.
+                </p>
+              </div>
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '0.9rem', padding: '1.25rem', display: 'grid', gap: '0.5rem' }}>
+                  <strong>Account</strong>
+                  <span style={{ color: '#475569' }}>Signed in as {user?.email}</span>
+                  {profile && (
+                    <span style={{ color: '#64748b' }}>Role: {profile.role?.toUpperCase?.() ?? 'USER'}</span>
+                  )}
+                </div>
+                {entitlements && (
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '0.9rem', padding: '1.25rem', display: 'grid', gap: '0.5rem' }}>
+                    <strong>Subscription</strong>
+                    <span style={{ color: '#475569' }}>Plan: {entitlements.plan.toUpperCase()}</span>
+                    <span style={{ color: '#475569' }}>Remaining downloads: {entitlements.remainingDownloads}</span>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={refreshProfile}
+                style={{
+                  justifySelf: 'start',
+                  padding: '0.65rem 1.2rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #1d4ed8',
+                  background: '#1d4ed8',
+                  color: '#fff',
+                  fontWeight: 600,
+                }}
+              >
+                Refresh account data
+              </button>
+            </section>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
