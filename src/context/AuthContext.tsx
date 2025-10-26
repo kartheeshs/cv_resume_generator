@@ -52,11 +52,17 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const actionCodeUrl =
-  process.env.NEXT_PUBLIC_EMAIL_SIGN_IN_REDIRECT ??
-  (typeof window !== 'undefined'
-    ? `${window.location.origin}/callback`
-    : 'http://localhost:3000/callback');
+const resolveActionCodeBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_EMAIL_SIGN_IN_REDIRECT) {
+    return process.env.NEXT_PUBLIC_EMAIL_SIGN_IN_REDIRECT;
+  }
+
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/callback`;
+  }
+
+  return 'http://localhost:3000/callback';
+};
 
 async function ensureUserProfile(user: User): Promise<UserProfile> {
   const ref = doc(db, 'users', user.uid);
@@ -141,22 +147,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   const sendEmailLink = useCallback(async (email: string) => {
-    let targetUrl = actionCodeUrl;
+    const baseUrl = resolveActionCodeBaseUrl();
+    let targetUrl = baseUrl;
     if (typeof window !== 'undefined') {
-      const base = actionCodeUrl.startsWith('http')
-        ? actionCodeUrl
-        : `${window.location.origin}${actionCodeUrl}`;
+      const base = baseUrl.startsWith('http')
+        ? baseUrl
+        : `${window.location.origin}${baseUrl}`;
       const url = new URL(base);
-      url.searchParams.set('email', email);
+      url.searchParams.set('email', email.trim());
       targetUrl = url.toString();
     }
     const actionCodeSettings = {
       url: targetUrl,
       handleCodeInApp: true,
     };
-    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+    const normalizedEmail = email.trim();
+    await sendSignInLinkToEmail(auth, normalizedEmail, actionCodeSettings);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('emailForSignIn', email);
+      window.localStorage.setItem('emailForSignIn', normalizedEmail);
     }
   }, []);
 
