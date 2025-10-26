@@ -4,6 +4,7 @@ import { AriaTemplate } from './components/AriaTemplate';
 import { SashaTemplate } from './components/SashaTemplate';
 import { SamanthaTemplate } from './components/SamanthaTemplate';
 import { CatherineTemplate } from './components/CatherineTemplate';
+import { JapaneseTemplate } from './components/JapaneseTemplate';
 
 export interface ResumeTemplateDefinition extends ResumeTemplate {
   defaultContent: ResumeDraftContent;
@@ -339,6 +340,127 @@ const catherineContent: ResumeDraftContent = {
   certifications: [],
 };
 
+const japaneseContent: ResumeDraftContent = {
+  documentTitle: '山田太郎 履歴書',
+  profile: {
+    fullName: '山田 太郎',
+    role: '営業職 志望',
+    contact: {
+      email: 'taro.yamada@example.com',
+      phone: '080-1234-5678',
+      location: '東京都渋谷区',
+    },
+  },
+  objective:
+    '御社の法人向けソリューションを国内市場に広め、顧客課題の解決に寄与したいと考えて応募いたしました。営業として培った傾聴力と提案力を活かし、新規開拓と既存顧客の深耕の両軸で成果を上げる所存です。',
+  summary:
+    '前職ではSaaSスタートアップでフィールドセールスとして従事し、年間契約額1.2億円を担当。提案書の標準化と商談レビューの仕組み化を通じてチームの受注率を18%向上させた経験があります。',
+  workExperiences: [
+    {
+      id: 'jp-exp-1',
+      title: 'フィールドセールス',
+      company: '株式会社リンクソリューション',
+      location: '東京都渋谷区',
+      startDate: '2020-04',
+      endDate: '2023-12',
+      bullets: [
+        '中堅製造業を中心に40社を担当し、年間契約額1.2億円を達成。',
+        '商談プロセスを可視化する仕組みを構築し、チーム全体の受注率を18%向上。',
+        '新機能のβテストを牽引し、顧客要望をプロダクトロードマップに反映。',
+      ],
+    },
+    {
+      id: 'jp-exp-2',
+      title: 'インサイドセールス',
+      company: '株式会社リンクソリューション',
+      location: '東京都渋谷区',
+      startDate: '2018-04',
+      endDate: '2020-03',
+      bullets: [
+        'リード育成プログラムを刷新し、SQL創出数を前年比160%に拡大。',
+        'マーケティングと連携し、業界別ウェビナーの企画運営を担当。',
+      ],
+    },
+  ],
+  education: [
+    {
+      id: 'jp-edu-1',
+      school: '東京都立西高校',
+      degree: '入学',
+      startDate: '2011-04',
+    },
+    {
+      id: 'jp-edu-1-grad',
+      school: '東京都立西高校',
+      degree: '卒業',
+      startDate: '2014-03',
+    },
+    {
+      id: 'jp-edu-2',
+      school: '早稲田大学 商学部',
+      degree: '入学',
+      location: '東京都新宿区',
+      startDate: '2014-04',
+    },
+    {
+      id: 'jp-edu-2-grad',
+      school: '早稲田大学 商学部',
+      degree: '卒業',
+      startDate: '2018-03',
+    },
+  ],
+  skillGroups: [
+    {
+      id: 'jp-skills',
+      title: 'スキル',
+      skills: ['法人営業', 'SaaS提案', 'Salesforce', '課題ヒアリング', 'KPI設計'],
+    },
+  ],
+  listSections: [
+    {
+      id: 'japanese-furigana',
+      title: 'ふりがな',
+      items: ['やまだ たろう'],
+    },
+    {
+      id: 'japanese-personal',
+      title: '個人情報',
+      items: ['1995年4月12日生（満28歳）', '男', '通勤時間 45分'],
+    },
+    {
+      id: 'japanese-address',
+      title: '住所',
+      items: ['〒150-0002 東京都渋谷区渋谷1-2-3 サンプルマンション301号', '最寄駅 代々木上原駅'],
+    },
+    {
+      id: 'japanese-household',
+      title: '家族状況',
+      items: ['扶養家族（配偶者を除く） 1人', '配偶者 あり・扶養義務 あり'],
+    },
+    {
+      id: 'japanese-emergency',
+      title: '緊急連絡先',
+      items: ['山田 花子（母）', '東京都世田谷区', '03-3456-7890'],
+    },
+    {
+      id: 'japanese-hobbies',
+      title: '趣味・特技',
+      items: ['ランニング', '写真撮影', 'カフェ巡り'],
+    },
+    {
+      id: 'japanese-licenses',
+      title: '免許・資格',
+      items: ['2018-06|普通自動車第一種免許 取得', '2020-09|TOEIC L&R 860点'],
+    },
+    {
+      id: 'japanese-remarks',
+      title: '本人希望欄',
+      items: ['勤務地：東京本社を希望（全国転勤可）', '入社可能時期：2024年5月1日'],
+    },
+  ],
+  certifications: [],
+};
+
 export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition> = {
   'aria-stark': {
     id: 'aria-stark',
@@ -375,6 +497,15 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#1f2937',
     defaultContent: catherineContent,
     renderPreview: (content) => <CatherineTemplate content={content} />,
+  },
+  'japanese-rirekisho': {
+    id: 'japanese-rirekisho',
+    name: '山田太郎 — 履歴書（日本語）',
+    kind: 'resume',
+    description: 'Traditional two-page Japanese rirekisho with structured sections and warm accent lines.',
+    accentColor: '#dc2626',
+    defaultContent: japaneseContent,
+    renderPreview: (content) => <JapaneseTemplate content={content} />,
   },
 };
 

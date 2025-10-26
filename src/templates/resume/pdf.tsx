@@ -80,6 +80,155 @@ function renderList(items: string[]) {
   );
 }
 
+function getListSection(content: ResumeDraftContent, id: string) {
+  return content.listSections.find((section) => section.id === id);
+}
+
+function getListItem(content: ResumeDraftContent, id: string, index: number, fallback = '') {
+  return getListSection(content, id)?.items[index] ?? fallback;
+}
+
+function parseYearMonth(value?: string): [string, string] {
+  if (!value) return ['', ''];
+  if (value.includes('-')) {
+    const [year, month] = value.split('-');
+    return [year ?? '', month?.padStart(2, '0') ?? ''];
+  }
+  const numeric = value.match(/(\d{4})[^0-9]*(\d{1,2})?/);
+  if (numeric) {
+    return [numeric[1] ?? '', numeric[2] ? numeric[2].padStart(2, '0') : ''];
+  }
+  return [value, ''];
+}
+
+const japaneseBorderColor = '#d97766';
+
+const japaneseStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: japaneseBorderColor,
+    padding: 20,
+    backgroundColor: '#ffffff',
+  },
+  section: {
+    marginBottom: 14,
+  },
+  header: {
+    flexDirection: 'row',
+  },
+  photoBox: {
+    width: 120,
+    height: 160,
+    borderWidth: 1,
+    borderColor: japaneseBorderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 16,
+  },
+  nameGrid: {
+    borderWidth: 1,
+    borderColor: japaneseBorderColor,
+    marginTop: 12,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: japaneseBorderColor,
+  },
+  gridLabel: {
+    width: 110,
+    borderRightWidth: 1,
+    borderRightColor: japaneseBorderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fef2f2',
+    paddingVertical: 8,
+    fontSize: 10,
+  },
+  gridValue: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  furiganaText: {
+    fontSize: 12,
+  },
+  nameText: {
+    fontSize: 16,
+    fontWeight: 700,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: japaneseBorderColor,
+  },
+  tableHeading: {
+    borderBottomWidth: 1,
+    borderBottomColor: japaneseBorderColor,
+    backgroundColor: '#fef2f2',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  tableHeadingText: {
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: japaneseBorderColor,
+  },
+  historyYear: {
+    width: 56,
+    borderRightWidth: 1,
+    borderRightColor: japaneseBorderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  historyMonth: {
+    width: 56,
+    borderRightWidth: 1,
+    borderRightColor: japaneseBorderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  historyDescription: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  historyLabelText: {
+    fontSize: 11,
+  },
+  historyDescriptionText: {
+    fontSize: 11,
+  },
+  multiLine: {
+    minHeight: 90,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  multiLineText: {
+    fontSize: 11,
+    lineHeight: 1.6,
+  },
+  dualCellRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: japaneseBorderColor,
+  },
+  dualCell: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  dualCellText: {
+    fontSize: 11,
+  },
+});
+
 function ariaPdf(content: ResumeDraftContent) {
   return (
     <Document>
@@ -249,6 +398,218 @@ function samanthaPdf(content: ResumeDraftContent) {
   );
 }
 
+function japanesePdf(content: ResumeDraftContent) {
+  const furigana = getListItem(content, 'japanese-furigana', 0, 'やまだ たろう');
+  const birth = getListItem(content, 'japanese-personal', 0, '1995年4月12日生（満28歳）');
+  const gender = getListItem(content, 'japanese-personal', 1, '男');
+  const commute = getListItem(content, 'japanese-personal', 2, '通勤時間 45分');
+  const address = getListSection(content, 'japanese-address');
+  const dependents = getListItem(content, 'japanese-household', 0, '扶養家族（配偶者を除く） 1人');
+  const spouse = getListItem(content, 'japanese-household', 1, '配偶者 あり・扶養義務 あり');
+  const emergency = getListSection(content, 'japanese-emergency');
+  const hobbies = getListSection(content, 'japanese-hobbies');
+  const licenses = getListSection(content, 'japanese-licenses');
+  const remarks = getListSection(content, 'japanese-remarks');
+
+  const educationEntries = [...content.education].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
+  const experienceEntries = [...content.workExperiences].sort((a, b) =>
+    (a.startDate ?? '').localeCompare(b.startDate ?? '')
+  );
+
+  const renderHistoryRow = (key: string, year: string, month: string, description: string) => (
+    <View key={key} style={japaneseStyles.historyRow}>
+      <View style={japaneseStyles.historyYear}>
+        <Text style={japaneseStyles.historyLabelText}>{year}</Text>
+      </View>
+      <View style={japaneseStyles.historyMonth}>
+        <Text style={japaneseStyles.historyLabelText}>{month}</Text>
+      </View>
+      <View style={japaneseStyles.historyDescription}>
+        <Text style={japaneseStyles.historyDescriptionText}>{description}</Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <Document>
+      <Page size="A4" style={{ ...baseStyles.page, backgroundColor: '#fff' }}>
+        <View style={japaneseStyles.container}>
+          <View style={[japaneseStyles.section, japaneseStyles.header]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: '#ef4444', fontWeight: 700 }}>履歴書</Text>
+              <Text style={{ fontSize: 10, color: '#ef4444', marginTop: 4, letterSpacing: 1 }}>RIREKISHO</Text>
+              <View style={japaneseStyles.nameGrid}>
+                <View style={[japaneseStyles.gridRow, { borderTopWidth: 0 }]}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text>ふりがな</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.furiganaText}>{furigana}</Text>
+                  </View>
+                </View>
+                <View style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text>氏名</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.nameText}>{content.profile.fullName}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View style={japaneseStyles.photoBox}>
+              <Text style={{ fontSize: 10, color: '#d97706' }}>写真貼付</Text>
+            </View>
+          </View>
+
+          <View style={[japaneseStyles.section, japaneseStyles.table]}>
+            <View style={{ flexDirection: 'row' }}>
+              <View style={[japaneseStyles.gridLabel, { height: 'auto', paddingVertical: 10 }]}>
+                <Text>生年月日</Text>
+              </View>
+              <View style={[japaneseStyles.gridValue, { flexDirection: 'row', flexWrap: 'wrap' }]}>
+                <Text>{birth}</Text>
+                <Text style={{ marginLeft: 12 }}>性別 {gender}</Text>
+                <Text style={{ marginLeft: 12 }}>{commute}</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: japaneseBorderColor }}>
+              <View style={[japaneseStyles.gridLabel, { height: 'auto', paddingVertical: 10 }]}>
+                <Text>住所</Text>
+              </View>
+              <View style={[japaneseStyles.gridValue, { paddingVertical: 10 }]}>
+                {address?.items.map((line) => (
+                  <Text key={line}>{line}</Text>
+                ))}
+                {content.profile.contact.phone ? <Text>電話 {content.profile.contact.phone}</Text> : null}
+                {content.profile.contact.email ? <Text>メール {content.profile.contact.email}</Text> : null}
+              </View>
+            </View>
+          </View>
+
+          <View style={[japaneseStyles.section, japaneseStyles.table]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={japaneseStyles.tableHeadingText}>学歴・職歴</Text>
+            </View>
+            {educationEntries.map((education) => {
+              const [year, month] = parseYearMonth(education.startDate);
+              return renderHistoryRow(education.id, year, month, `${education.school} ${education.degree}`);
+            })}
+            <View style={japaneseStyles.historyRow}>
+              <View style={japaneseStyles.historyYear}>
+                <Text style={japaneseStyles.historyLabelText}> </Text>
+              </View>
+              <View style={japaneseStyles.historyMonth}>
+                <Text style={japaneseStyles.historyLabelText}> </Text>
+              </View>
+              <View style={japaneseStyles.historyDescription}>
+                <Text style={[japaneseStyles.historyDescriptionText, { color: '#ef4444' }]}>以上</Text>
+              </View>
+            </View>
+            {experienceEntries.map((experience) => {
+              const [year, month] = parseYearMonth(experience.startDate);
+              return renderHistoryRow(experience.id, year, month, `${experience.company} ${experience.title}`);
+            })}
+          </View>
+
+          {licenses ? (
+            <View style={[japaneseStyles.section, japaneseStyles.table]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={japaneseStyles.tableHeadingText}>免許・資格</Text>
+            </View>
+              {licenses.items.map((item, index) => {
+                const [date, description] = item.split('|');
+                const [year, month] = parseYearMonth(date);
+                const descriptionText = (description ?? item).trim();
+                return renderHistoryRow(`${licenses.id}-${index}`, year, month, descriptionText);
+              })}
+            </View>
+          ) : null}
+
+          <View style={[japaneseStyles.section, japaneseStyles.table]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={japaneseStyles.tableHeadingText}>本人希望欄</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>{(remarks?.items ?? ['特記事項なし']).join('\n')}</Text>
+            </View>
+          </View>
+        </View>
+      </Page>
+
+      <Page size="A4" style={{ ...baseStyles.page, backgroundColor: '#fff' }}>
+        <View style={japaneseStyles.container}>
+          <View style={[japaneseStyles.section, japaneseStyles.table]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={japaneseStyles.tableHeadingText}>志望動機</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>
+                {content.objective ?? '御社での業務に貢献できるよう尽力いたします。'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={[japaneseStyles.section, japaneseStyles.table]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={japaneseStyles.tableHeadingText}>自己PR</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>
+                {content.summary ?? '成果にこだわり行動する姿勢を強みにしています。'}
+              </Text>
+            </View>
+          </View>
+
+          {hobbies ? (
+            <View style={[japaneseStyles.section, japaneseStyles.table]}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={japaneseStyles.tableHeadingText}>趣味・特技</Text>
+              </View>
+              <View style={[japaneseStyles.multiLine, { flexDirection: 'row', flexWrap: 'wrap' }]}>
+                {hobbies.items.map((item) => (
+                  <Text key={item} style={{ marginRight: 8, fontSize: 11 }}>
+                    ・{item}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          <View style={[japaneseStyles.section, japaneseStyles.table]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={japaneseStyles.tableHeadingText}>通勤・家族状況</Text>
+            </View>
+            <View style={japaneseStyles.dualCellRow}>
+              <View style={[japaneseStyles.dualCell, { borderRightWidth: 1, borderRightColor: japaneseBorderColor }]}>
+                <Text style={japaneseStyles.dualCellText}>{dependents}</Text>
+              </View>
+              <View style={japaneseStyles.dualCell}>
+                <Text style={japaneseStyles.dualCellText}>{spouse}</Text>
+              </View>
+            </View>
+          </View>
+
+          {emergency ? (
+            <View style={[japaneseStyles.section, japaneseStyles.table]}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={japaneseStyles.tableHeadingText}>緊急連絡先</Text>
+              </View>
+              <View style={japaneseStyles.multiLine}>
+                {emergency.items.map((item, index) => (
+                  <Text key={`${emergency.id}-${index}`} style={japaneseStyles.multiLineText}>
+                    {item}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
 function catherinePdf(content: ResumeDraftContent) {
   return (
     <Document>
@@ -333,6 +694,7 @@ const pdfRenderers: Record<string, (content: ResumeDraftContent) => JSX.Element>
   'sasha-wagner': sashaPdf,
   'samantha-carter': samanthaPdf,
   'catherine-barnett': catherinePdf,
+  'japanese-rirekisho': japanesePdf,
 };
 
 export function renderResumePdf(templateId: string, content: ResumeDraftContent) {
