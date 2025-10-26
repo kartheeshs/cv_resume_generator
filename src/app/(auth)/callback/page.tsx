@@ -27,6 +27,13 @@ export default function CallbackPage() {
         if (isSignInWithEmailLink(auth, window.location.href)) {
           await completeEmailLinkSignIn(email);
           window.localStorage.removeItem('emailForSignIn');
+          const flowMode = window.localStorage.getItem('authFlowMode');
+          window.localStorage.removeItem('authFlowMode');
+          if (flowMode === 'signup') {
+            setStatus('Account confirmed! Redirecting to your dashboard...');
+          } else {
+            setStatus('Sign-in complete! Redirecting to your dashboard...');
+          }
           router.replace('/dashboard');
         } else {
           setStatus('This link is no longer valid. Please request a new sign-in email.');
