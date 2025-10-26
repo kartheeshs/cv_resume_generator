@@ -668,8 +668,7 @@ export function ResumeDashboard() {
                 )}
               </div>
 
-              {viewMode === 'preview' ? (
-        viewMode === 'preview' ? (
+            {viewMode === 'preview' ? (
           <div
             style={{
               background: '#fff',
