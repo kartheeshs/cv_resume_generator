@@ -367,7 +367,27 @@ export function ResumeDashboard() {
     [templates]
   );
 
+  const cvTemplates = useMemo(
+    () =>
+      templates
+        .filter((template) => template.kind === 'cv')
+        .map((template) => ({
+          template,
+          definition: getResumeTemplateDefinition(template.id),
+        }))
+        .filter(
+          (
+            entry,
+          ): entry is {
+            template: ResumeTemplate;
+            definition: ResumeTemplateDefinition;
+          } => Boolean(entry.definition)
+        ),
+    [templates]
+  );
+
   const resumeDrafts = drafts.filter((draft) => getResumeTemplateDefinition(draft.templateId)?.kind === 'resume');
+  const cvDrafts = drafts.filter((draft) => getResumeTemplateDefinition(draft.templateId)?.kind === 'cv');
 
   const isCustomLanguage = !LANGUAGE_OPTIONS.some((option) => option.value === form.language);
   const selectedLanguageValue = isCustomLanguage ? 'custom' : form.language;
@@ -1486,14 +1506,181 @@ export function ResumeDashboard() {
                 background: '#fff',
                 borderRadius: '1rem',
                 border: '1px solid #e2e8f0',
-                padding: '2rem',
-                textAlign: 'center',
+                padding: '1.75rem',
+                display: 'grid',
+                gap: '1.75rem',
               }}
             >
-              <h2 style={{ margin: 0 }}>Curriculum Vitae builder</h2>
-              <p style={{ marginTop: '0.75rem', color: '#64748b' }}>
-                CV layouts are in development. You&apos;ll be able to craft multi-page academic profiles soon.
-              </p>
+              <div>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Curriculum Vitae library</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
+                  Explore long-form CV layouts tailored for international applications and multi-page academic profiles.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gap: '1.25rem' }}>
+                <div style={{ display: 'grid', gap: '1.25rem', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+                  {cvTemplates.length === 0 ? (
+                    <div
+                      style={{
+                        border: '1px dashed #cbd5f5',
+                        borderRadius: '0.85rem',
+                        padding: '1.5rem',
+                        color: '#64748b',
+                        background: '#f8fafc',
+                      }}
+                    >
+                      CV templates are syncing. Please wait a moment and they&apos;ll appear here automatically.
+                    </div>
+                  ) : (
+                    cvTemplates.map(({ template, definition }) => {
+                      const isActive = template.id === form.templateId;
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => hydrateFromTemplate(template.id)}
+                          style={{
+                            display: 'grid',
+                            gap: '0.9rem',
+                            padding: '1.1rem',
+                            borderRadius: '1rem',
+                            border: `2px solid ${isActive ? template.accentColor : '#e2e8f0'}`,
+                            background: '#fff',
+                            textAlign: 'left',
+                            boxShadow: isActive
+                              ? '0 22px 44px rgba(37, 99, 235, 0.18)'
+                              : '0 16px 30px rgba(15, 23, 42, 0.08)',
+                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: 'relative',
+                              width: '100%',
+                              aspectRatio: '3 / 4',
+                              borderRadius: '0.85rem',
+                              background: 'linear-gradient(135deg, #e0f2fe 0%, #f8fafc 60%, #e2e8f0 100%)',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                inset: '12px',
+                                borderRadius: '0.75rem',
+                                background: '#fff',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  width: TEMPLATE_THUMBNAIL_WIDTH,
+                                  height: TEMPLATE_THUMBNAIL_HEIGHT,
+                                  transform: `scale(${TEMPLATE_THUMBNAIL_SCALE})`,
+                                  transformOrigin: 'top left',
+                                  pointerEvents: 'none',
+                                }}
+                              >
+                                {renderTemplateThumbnail(definition)}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gap: '0.35rem' }}>
+                            <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>{template.name}</span>
+                            <span style={{ fontSize: '0.9rem', color: '#64748b' }}>{template.description}</span>
+                          </div>
+                          <span style={{ fontSize: '0.85rem', color: template.accentColor, fontWeight: 600 }}>
+                            Open in editor ↗
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                <h2 style={{ margin: 0, fontSize: '1.3rem' }}>Saved CV drafts</h2>
+                {loadingDrafts ? (
+                  <p style={{ color: '#64748b' }}>Loading your CV drafts…</p>
+                ) : cvDrafts.length === 0 ? (
+                  <p style={{ color: '#64748b' }}>
+                    No CV drafts yet. Load a template above and save your progress to revisit it later.
+                  </p>
+                ) : (
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.85rem' }}>
+                    {cvDrafts.map((draft) => {
+                      const definition = getResumeTemplateDefinition(draft.templateId);
+                      return (
+                        <li key={draft.id}>
+                          <div
+                            style={{
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '0.9rem',
+                              padding: '1rem 1.25rem',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              flexWrap: 'wrap',
+                              gap: '1rem',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
+                              <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                                {definition?.name ?? 'Custom template'} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
+                                {formatLanguageLabel(draft.language)}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await hydrateFromDraft(draft.id);
+                                  setActiveSection('resume');
+                                  setViewMode('edit');
+                                }}
+                                style={{
+                                  padding: '0.6rem 1.1rem',
+                                  borderRadius: '0.75rem',
+                                  border: '1px solid #0f172a',
+                                  background: '#fff',
+                                  color: '#0f172a',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await hydrateFromDraft(draft.id);
+                                  setActiveSection('resume');
+                                  setViewMode('preview');
+                                }}
+                                style={{
+                                  padding: '0.6rem 1.1rem',
+                                  borderRadius: '0.75rem',
+                                  border: '1px solid #2563eb',
+                                  background: '#2563eb',
+                                  color: '#fff',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Preview
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </section>
           )}
           {activeSection === 'drafts' && (
@@ -1508,12 +1695,13 @@ export function ResumeDashboard() {
               </div>
               {loadingDrafts ? (
                 <p style={{ color: '#64748b' }}>Loading your drafts…</p>
-              ) : resumeDrafts.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No drafts yet. Save a resume from the editor to see it listed here.</p>
+              ) : drafts.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No drafts yet. Save a resume or CV from the editor to see it listed here.</p>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '1rem' }}>
-                  {resumeDrafts.map((draft) => {
+                  {drafts.map((draft) => {
                     const definition = getResumeTemplateDefinition(draft.templateId);
+                    const kindLabel = definition?.kind === 'cv' ? 'CV' : 'Resume';
                     return (
                       <li key={draft.id}>
                         <div
@@ -1531,7 +1719,7 @@ export function ResumeDashboard() {
                           <div>
                             <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
                             <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                              {definition?.name ?? 'Custom template'} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
+                              {definition?.name ?? 'Custom template'} · {kindLabel} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
                               {formatLanguageLabel(draft.language)}
                             </div>
                           </div>

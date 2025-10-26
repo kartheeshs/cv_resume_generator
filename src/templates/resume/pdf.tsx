@@ -1,9 +1,45 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 import { ResumeDraftContent } from '@/types/resume';
+
+Font.register({
+  family: 'Inter',
+  fonts: [
+    {
+      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrKQ1nO0nDd3DTpQ.ttf',
+      fontWeight: 400,
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/inter/v13/UcCM3FwrKQ1nO0nKUFDd0g3p.ttf',
+      fontWeight: 600,
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/inter/v13/UcCM3FwrKQ1nO0nKUFTd0g3p.ttf',
+      fontWeight: 700,
+    },
+  ],
+});
+
+Font.register({
+  family: 'NotoSansJP',
+  fonts: [
+    {
+      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F63fjptAgt5VM-kVkqdyU8n1i8q0g.ttf',
+      fontWeight: 400,
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F6pfjptAgt5VM-kVkqdyU8n_qUwwpY.ttf',
+      fontWeight: 500,
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F6ofjptAgt5VM-kVkqdyU8n1o0_uYq2.ttf',
+      fontWeight: 700,
+    },
+  ],
+});
 
 const baseStyles = StyleSheet.create({
   page: {
-    fontFamily: 'Helvetica',
+    fontFamily: 'Inter',
     fontSize: 11,
     color: '#1f2937',
     padding: 36,
@@ -28,6 +64,13 @@ const baseStyles = StyleSheet.create({
     marginBottom: 2,
   },
 });
+
+function getFontFamily(content: ResumeDraftContent) {
+  if (content.language?.toLowerCase().startsWith('ja')) {
+    return 'NotoSansJP';
+  }
+  return 'Inter';
+}
 
 function renderExperience(experience: ResumeDraftContent['workExperiences'][number]) {
   return (
@@ -296,10 +339,163 @@ const japaneseStyles = StyleSheet.create({
   },
 });
 
+const turnerStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#e2e8f0',
+    padding: 24,
+  },
+  sheet: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 36,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 700,
+    letterSpacing: 1.6,
+    color: '#0f172a',
+  },
+  role: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#2563eb',
+    marginTop: 4,
+  },
+  tagline: {
+    fontSize: 10,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: '#64748b',
+    marginTop: 4,
+  },
+  contact: {
+    fontSize: 10,
+    color: '#1f2937',
+    textAlign: 'right',
+  },
+  divider: {
+    height: 2,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 18,
+  },
+  section: {
+    marginBottom: 18,
+  },
+  sectionHeading: {
+    fontSize: 11,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: '#0f172a',
+    fontWeight: 700,
+    marginBottom: 8,
+  },
+  twoColumn: {
+    flexDirection: 'row',
+  },
+  column: {
+    flex: 1,
+  },
+  columnSpacing: {
+    marginRight: 18,
+  },
+  listItem: {
+    fontSize: 10.5,
+    color: '#1f2937',
+    marginBottom: 6,
+    lineHeight: 1.45,
+  },
+  educationItem: {
+    marginBottom: 12,
+  },
+  educationSchool: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  educationDegree: {
+    fontSize: 11,
+    color: '#1f2937',
+  },
+  educationDates: {
+    fontSize: 10,
+    color: '#94a3b8',
+  },
+  experience: {
+    marginBottom: 16,
+  },
+  experienceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  experienceTitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  experienceDates: {
+    fontSize: 10,
+    color: '#64748b',
+  },
+  experienceCompany: {
+    fontSize: 10.5,
+    color: '#475569',
+    marginTop: 2,
+  },
+  experienceLocation: {
+    fontSize: 9.5,
+    color: '#94a3b8',
+    marginTop: 1,
+  },
+  bullet: {
+    fontSize: 10.5,
+    color: '#1f2937',
+    marginTop: 4,
+    lineHeight: 1.4,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  chip: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#1d4ed8',
+    backgroundColor: '#dbeafe',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  paragraph: {
+    fontSize: 10.5,
+    color: '#1f2937',
+    lineHeight: 1.5,
+  },
+  simpleList: {
+    fontSize: 10.5,
+    color: '#1f2937',
+    marginBottom: 6,
+  },
+  pageFooter: {
+    fontSize: 10,
+    color: '#94a3b8',
+    textAlign: 'right',
+  },
+});
+
 function ariaPdf(content: ResumeDraftContent) {
   return (
     <Document>
-      <Page size="A4" style={baseStyles.page}>
+      <Page size="A4" style={{ ...baseStyles.page, fontFamily: getFontFamily(content) }}>
         <View style={{ marginBottom: 20 }}>
           <Text style={{ fontSize: 22, letterSpacing: 2, fontWeight: 700 }}>{content.profile.fullName.toUpperCase()}</Text>
           <Text style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginTop: 4 }}>{content.profile.role}</Text>
@@ -337,7 +533,10 @@ function ariaPdf(content: ResumeDraftContent) {
 function sashaPdf(content: ResumeDraftContent) {
   return (
     <Document>
-      <Page size="A4" style={{ ...baseStyles.page, padding: 0 }}>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
+      >
         <View style={{ flexDirection: 'row', height: '100%' }}>
           <View style={{ width: '32%', backgroundColor: '#0f172a', color: '#f8fafc', padding: 28 }}>
             <Text style={{ fontSize: 18, fontWeight: 700 }}>{content.profile.fullName.toUpperCase()}</Text>
@@ -412,7 +611,10 @@ function sashaPdf(content: ResumeDraftContent) {
 function samanthaPdf(content: ResumeDraftContent) {
   return (
     <Document>
-      <Page size="A4" style={{ ...baseStyles.page, padding: 0 }}>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
+      >
         <View style={{ backgroundColor: '#0f172a', color: '#fff', padding: 32 }}>
           <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
             <View>
@@ -504,7 +706,14 @@ function japanesePdf(content: ResumeDraftContent) {
 
   return (
     <Document>
-      <Page size="A4" style={{ ...baseStyles.page, backgroundColor: '#fff' }}>
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          backgroundColor: '#fff',
+          fontFamily: getFontFamily(content),
+        }}
+      >
         <View style={japaneseStyles.container}>
           <View style={[japaneseStyles.section, japaneseStyles.header]}>
             <View style={japaneseStyles.headerLeft}>
@@ -707,10 +916,267 @@ function japanesePdf(content: ResumeDraftContent) {
   );
 }
 
+function turnerPdf(content: ResumeDraftContent) {
+  const coursesLeft = getListSection(content, 'turner-courses-left')?.items ?? [
+    'Immersive Cost Analytics (LSE)',
+    'Financial Statement Analysis (UCSF)',
+    'Advanced Excel for Financial Modeling',
+    'Derivatives (Options Trading Institute)',
+  ];
+  const coursesRight = getListSection(content, 'turner-courses-right')?.items ?? [
+    'Advanced Public Sector Financial Reporting and Analysis',
+    'Corporate Finance',
+    'Financial Risk Management (GARP)',
+    'Portfolio Simulation Workshop',
+  ];
+  const achievementsLeft = getListSection(content, 'turner-achievements-left')?.items ?? [
+    'Civic Service Awardee (2018) — Santa Monica Community',
+    'Leadership Fellowship (2019) — Berkeley Haas Center',
+  ];
+  const achievementsRight = getListSection(content, 'turner-achievements-right')?.items ?? [
+    'Peer Inc. Group of Companies Special Recognition (2017)',
+    'Young Entrepreneur Summit Winner (2016)',
+  ];
+  const interests = getListSection(content, 'turner-interests')?.items ?? [
+    'Machine Learning',
+    'Calligraphy',
+    'Astronomy',
+    'Photography',
+  ];
+  const references = getListSection(content, 'turner-references')?.items ?? [];
+
+  const volunteerExperiences = content.workExperiences.filter(
+    (experience) => experience.category === 'Volunteer Experience'
+  );
+  const professionalExperiences = content.workExperiences.filter(
+    (experience) => experience.category !== 'Volunteer Experience'
+  );
+
+  const languageGroup = content.skillGroups.find((group) => group.id === 'turner-languages');
+  const certificationGroup = content.skillGroups.find((group) => group.id === 'turner-certifications');
+
+  const renderExperience = (experience: ResumeDraftContent['workExperiences'][number]) => (
+    <View key={experience.id} style={turnerStyles.experience}>
+      <View style={turnerStyles.experienceHeader}>
+        <Text style={turnerStyles.experienceTitle}>{experience.title}</Text>
+        <Text style={turnerStyles.experienceDates}>
+          {[experience.startDate, experience.endDate].filter(Boolean).join(' – ')}
+        </Text>
+      </View>
+      <Text style={turnerStyles.experienceCompany}>{experience.company}</Text>
+      {experience.location ? <Text style={turnerStyles.experienceLocation}>{experience.location}</Text> : null}
+      {experience.bullets.map((bullet, index) => (
+        <Text key={`${experience.id}-bullet-${index}`} style={turnerStyles.bullet}>
+          • {bullet}
+        </Text>
+      ))}
+    </View>
+  );
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          fontFamily: getFontFamily(content),
+          padding: 0,
+          backgroundColor: '#e2e8f0',
+        }}
+      >
+        <View style={turnerStyles.background}>
+          <View style={turnerStyles.sheet}>
+            <View style={turnerStyles.header}>
+              <View>
+                <Text style={turnerStyles.name}>{content.profile.fullName}</Text>
+                <Text style={turnerStyles.role}>{content.profile.role}</Text>
+                {content.profile.tagline ? (
+                  <Text style={turnerStyles.tagline}>{content.profile.tagline}</Text>
+                ) : null}
+              </View>
+              <View style={turnerStyles.contact}>
+                {[content.profile.contact.phone, content.profile.contact.email, content.profile.contact.location, content.profile.contact.website]
+                  .filter(Boolean)
+                  .map((value) => (
+                    <Text key={value}>{value}</Text>
+                  ))}
+              </View>
+            </View>
+
+            <View style={turnerStyles.divider} />
+
+            <View style={turnerStyles.section}>
+              <Text style={turnerStyles.sectionHeading}>Courses & Training</Text>
+              <View style={turnerStyles.twoColumn}>
+                <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
+                  {coursesLeft.map((item, index) => (
+                    <Text key={`course-left-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+                <View style={turnerStyles.column}>
+                  {coursesRight.map((item, index) => (
+                    <Text key={`course-right-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            <View style={turnerStyles.section}>
+              <Text style={turnerStyles.sectionHeading}>Education</Text>
+              {content.education.map((entry) => (
+                <View key={entry.id} style={turnerStyles.educationItem}>
+                  <Text style={turnerStyles.educationSchool}>{entry.school}</Text>
+                  <Text style={turnerStyles.educationDegree}>{entry.degree}</Text>
+                  <Text style={turnerStyles.educationDates}>
+                    {[entry.startDate, entry.endDate].filter(Boolean).join(' – ')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={turnerStyles.section}>
+              <Text style={turnerStyles.sectionHeading}>Achievements & Awards</Text>
+              <View style={turnerStyles.twoColumn}>
+                <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
+                  {achievementsLeft.map((item, index) => (
+                    <Text key={`achievements-left-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+                <View style={turnerStyles.column}>
+                  {achievementsRight.map((item, index) => (
+                    <Text key={`achievements-right-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {volunteerExperiences.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>Volunteer Experience</Text>
+                {volunteerExperiences.map((experience) => renderExperience(experience))}
+              </View>
+            ) : null}
+
+            <View style={turnerStyles.section}>
+              <Text style={turnerStyles.sectionHeading}>Interests & Hobbies</Text>
+              <View style={turnerStyles.chipRow}>
+                {interests.map((interest, index) => (
+                  <Text key={`interest-${index}`} style={turnerStyles.chip}>
+                    {interest}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Page>
+
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          fontFamily: getFontFamily(content),
+          padding: 0,
+          backgroundColor: '#e2e8f0',
+        }}
+      >
+        <View style={turnerStyles.background}>
+          <View style={turnerStyles.sheet}>
+            <View style={turnerStyles.header}>
+              <Text style={turnerStyles.name}>{content.profile.fullName}</Text>
+              <Text style={turnerStyles.pageFooter}>Page 2 of 2</Text>
+            </View>
+
+            <View style={turnerStyles.divider} />
+
+            {content.summary ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>Professional Summary</Text>
+                <Text style={turnerStyles.paragraph}>{content.summary}</Text>
+              </View>
+            ) : null}
+
+            {content.objective ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>Career Objective</Text>
+                <Text style={turnerStyles.paragraph}>{content.objective}</Text>
+              </View>
+            ) : null}
+
+            {professionalExperiences.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>Professional Experience</Text>
+                {professionalExperiences.map((experience) => renderExperience(experience))}
+              </View>
+            ) : null}
+
+            {languageGroup ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>{languageGroup.title}</Text>
+                {languageGroup.skills.map((skill, index) => (
+                  <Text key={`language-${index}`} style={turnerStyles.simpleList}>
+                    {skill}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {certificationGroup ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>{certificationGroup.title}</Text>
+                {certificationGroup.skills.map((skill, index) => (
+                  <Text key={`certification-${index}`} style={turnerStyles.simpleList}>
+                    {skill}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {content.certifications.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>Credentials</Text>
+                {content.certifications.map((certificate) => (
+                  <Text key={certificate.id} style={turnerStyles.simpleList}>
+                    {certificate.name}
+                    {certificate.date ? ` — ${certificate.date}` : ''}
+                    {certificate.organization ? ` · ${certificate.organization}` : ''}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {references.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={turnerStyles.sectionHeading}>References</Text>
+                {references.map((reference, index) => (
+                  <Text key={`reference-${index}`} style={turnerStyles.simpleList}>
+                    {reference}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
 function catherinePdf(content: ResumeDraftContent) {
   return (
     <Document>
-      <Page size="A4" style={{ ...baseStyles.page, padding: 0 }}>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
+      >
         <View style={{ flexDirection: 'row', height: '100%' }}>
           <View style={{ width: '35%', backgroundColor: '#1f2937', color: '#f8fafc', padding: 32 }}>
             <Text style={{ fontSize: 18, fontWeight: 700 }}>{content.profile.fullName}</Text>
@@ -791,6 +1257,7 @@ const pdfRenderers: Record<string, (content: ResumeDraftContent) => JSX.Element>
   'sasha-wagner': sashaPdf,
   'samantha-carter': samanthaPdf,
   'catherine-barnett': catherinePdf,
+  'turner-global-cv': turnerPdf,
   'japanese-rirekisho': japanesePdf,
 };
 

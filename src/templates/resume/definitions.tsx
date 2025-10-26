@@ -5,6 +5,7 @@ import { SashaTemplate } from './components/SashaTemplate';
 import { SamanthaTemplate } from './components/SamanthaTemplate';
 import { CatherineTemplate } from './components/CatherineTemplate';
 import { JapaneseTemplate } from './components/JapaneseTemplate';
+import { TurnerCvTemplate } from './components/TurnerCvTemplate';
 
 export interface ResumeTemplateDefinition extends ResumeTemplate {
   defaultContent: ResumeDraftContent;
@@ -466,6 +467,188 @@ const japaneseContent: ResumeDraftContent = {
   certifications: [],
 };
 
+const turnerContent: ResumeDraftContent = {
+  documentTitle: 'Eric Turner CV',
+  language: 'en',
+  profile: {
+    fullName: 'Eric Turner',
+    role: 'Financial Analyst',
+    tagline: 'UC Berkeley',
+    contact: {
+      phone: '+1 (415) 555-9823',
+      email: 'eric.turner@email.com',
+      location: 'San Francisco, CA',
+      website: 'linkedin.com/in/ericturner',
+    },
+  },
+  summary:
+    'Global finance professional with eight years of experience building investment models, supporting public-sector audits, and guiding capital allocation decisions for high-growth teams.',
+  objective:
+    'Seeking a senior finance role that blends portfolio analytics with mission-driven strategy, enabling organizations to scale responsibly across international markets.',
+  workExperiences: [
+    {
+      id: 'turner-exp-1',
+      category: 'Professional Experience',
+      title: 'Senior Financial Analyst',
+      company: 'Pacific Ridge Capital',
+      location: 'San Francisco, CA',
+      startDate: '2021',
+      endDate: 'Present',
+      bullets: [
+        'Lead quarterly scenario planning across five business units, synthesising pricing, FX, and headcount inputs into a unified cash-flow forecast.',
+        'Partner with GTM leadership to redesign KPI dashboards that track ARR, retention, and CAC payback, resulting in a 14% improvement in forecast accuracy.',
+      ],
+    },
+    {
+      id: 'turner-exp-2',
+      category: 'Professional Experience',
+      title: 'Financial Analyst',
+      company: 'North Coast Advisory',
+      location: 'Los Angeles, CA',
+      startDate: '2017',
+      endDate: '2021',
+      bullets: [
+        'Built valuation models for public-private partnership bids exceeding $120M, incorporating sensitivity analyses and regulatory constraints.',
+        'Implemented variance analysis routines that reduced monthly close timelines by three business days.',
+      ],
+    },
+    {
+      id: 'turner-vol-1',
+      category: 'Volunteer Experience',
+      title: 'Nonprofit Board Analyst',
+      company: 'Santa Monica Alliance to End Homelessness',
+      location: 'Santa Monica, CA',
+      startDate: '2019',
+      endDate: 'Present',
+      bullets: [
+        'Oversee a $2.3M operating budget, aligning donor commitments with shelter expansion milestones.',
+        'Facilitated quarterly workshops for regional partners to coordinate data-sharing and grant compliance.',
+      ],
+    },
+    {
+      id: 'turner-vol-2',
+      category: 'Volunteer Experience',
+      title: 'Volunteer Financial Analyst',
+      company: 'Pacific Ridge Community College Venture Fund',
+      location: 'Los Angeles, CA',
+      startDate: '2017',
+      endDate: '2020',
+      bullets: [
+        'Mentored student founders on cash-flow management and pricing strategy during semester-long accelerator programmes.',
+      ],
+    },
+    {
+      id: 'turner-vol-3',
+      category: 'Volunteer Experience',
+      title: 'Volunteer Tutor',
+      company: 'Room to Read',
+      location: 'San Francisco, CA',
+      startDate: '2020',
+      endDate: 'Present',
+      bullets: ['Provide weekly financial literacy coaching for first-generation college applicants.'],
+    },
+  ],
+  education: [
+    {
+      id: 'turner-edu-1',
+      school: 'University of California, Berkeley',
+      degree: 'Master of Financial Engineering',
+      startDate: '2015',
+      endDate: '2016',
+    },
+    {
+      id: 'turner-edu-2',
+      school: 'Santa Monica University',
+      degree: 'Bachelor of Science in Finance',
+      startDate: '2011',
+      endDate: '2015',
+    },
+  ],
+  skillGroups: [
+    {
+      id: 'turner-languages',
+      title: 'Languages',
+      skills: ['English — Native', 'Japanese — Conversational', 'Spanish — Professional Working Proficiency'],
+    },
+    {
+      id: 'turner-certifications',
+      title: 'Technical Proficiencies',
+      skills: ['Power BI & Tableau', 'SQL & Python (pandas)', 'Adaptive Planning', 'Advanced Excel (Power Pivot)'],
+    },
+  ],
+  listSections: [
+    {
+      id: 'turner-courses-left',
+      title: 'Courses & Training (Left)',
+      placement: 'main',
+      items: [
+        'Immersive Cost Analytics (LSE)',
+        'Financial Statement Analysis (UCSF)',
+        'Advanced Excel for Financial Modeling',
+        'Derivatives (Options Trading Institute)',
+      ],
+    },
+    {
+      id: 'turner-courses-right',
+      title: 'Courses & Training (Right)',
+      placement: 'main',
+      items: [
+        'Advanced Public Sector Financial Reporting and Analysis',
+        'Corporate Finance',
+        'Financial Risk Management (GARP)',
+        'Portfolio Simulation Workshop',
+      ],
+    },
+    {
+      id: 'turner-achievements-left',
+      title: 'Achievements & Awards (Left)',
+      placement: 'main',
+      items: [
+        'Civic Service Awardee (2018) — Santa Monica Community',
+        'Leadership Fellowship (2019) — Berkeley Haas Center',
+      ],
+    },
+    {
+      id: 'turner-achievements-right',
+      title: 'Achievements & Awards (Right)',
+      placement: 'main',
+      items: [
+        'Peer Inc. Group of Companies Special Recognition (2017)',
+        'Young Entrepreneur Summit Winner (2016)',
+      ],
+    },
+    {
+      id: 'turner-interests',
+      title: 'Interests & Hobbies',
+      placement: 'main',
+      items: ['Machine Learning', 'Calligraphy', 'Astronomy', 'Photography'],
+    },
+    {
+      id: 'turner-references',
+      title: 'References',
+      placement: 'main',
+      items: [
+        'Dana Patel — Director of Finance, Pacific Ridge Capital · danapatel@email.com · +1 (415) 555-1920',
+        'Luis Hernández — Managing Director, North Coast Advisory · lhernandez@email.com · +1 (213) 555-4476',
+      ],
+    },
+  ],
+  certifications: [
+    {
+      id: 'turner-cert-1',
+      name: 'Chartered Financial Analyst (CFA)',
+      organization: 'CFA Institute',
+      date: '2020',
+    },
+    {
+      id: 'turner-cert-2',
+      name: 'Certified Government Financial Manager (CGFM)',
+      organization: 'Association of Government Accountants',
+      date: '2018',
+    },
+  ],
+};
+
 export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition> = {
   'aria-stark': {
     id: 'aria-stark',
@@ -502,6 +685,15 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#1f2937',
     defaultContent: catherineContent,
     renderPreview: (content) => <CatherineTemplate content={content} />,
+  },
+  'turner-global-cv': {
+    id: 'turner-global-cv',
+    name: 'Eric Turner — Global Finance CV',
+    kind: 'cv',
+    description: 'Two-page finance CV with balanced columns, volunteer history, and language coverage.',
+    accentColor: '#2563eb',
+    defaultContent: turnerContent,
+    renderPreview: (content) => <TurnerCvTemplate content={content} />,
   },
   'japanese-rirekisho': {
     id: 'japanese-rirekisho',
