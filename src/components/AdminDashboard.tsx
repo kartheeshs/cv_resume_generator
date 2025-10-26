@@ -27,9 +27,9 @@ interface UserRow {
 interface TemplateRow {
   id: string;
   name: string;
-  headline: string;
-  defaultSummary?: string;
-  defaultSkills?: string[];
+  description: string;
+  kind: 'resume' | 'cv';
+  accentColor: string;
 }
 
 export function AdminDashboard() {
@@ -63,10 +63,10 @@ export function AdminDashboard() {
       const snapshot = await getDocs(collection(db, 'templates'));
       const rows: TemplateRow[] = snapshot.docs.map((document) => ({
         id: document.id,
-        name: document.data().name as string,
-        headline: document.data().headline as string,
-        defaultSummary: document.data().defaultSummary as string | undefined,
-        defaultSkills: document.data().defaultSkills as string[] | undefined,
+        name: (document.data().name as string) ?? document.id,
+        description: (document.data().description as string) ?? '',
+        kind: (document.data().kind as 'resume' | 'cv') ?? 'resume',
+        accentColor: (document.data().accentColor as string) ?? '#0f172a',
       }));
       setTemplates(rows);
     };
@@ -88,9 +88,9 @@ export function AdminDashboard() {
     try {
       await setDoc(doc(db, 'templates', template.id), {
         name: template.name,
-        headline: template.headline,
-        defaultSummary: template.defaultSummary ?? '',
-        defaultSkills: template.defaultSkills ?? [],
+        description: template.description,
+        kind: template.kind,
+        accentColor: template.accentColor,
       });
       setStatus('Template saved.');
     } catch (error) {
@@ -196,12 +196,10 @@ export function AdminDashboard() {
                   }
                 >
                   <strong>{template.name}</strong>
-                  <div style={{ fontSize: '0.875rem', color: '#475569' }}>{template.headline}</div>
-                  {template.defaultSummary && (
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.35rem' }}>
-                      {template.defaultSummary}
-                    </div>
-                  )}
+                  <div style={{ fontSize: '0.875rem', color: '#475569' }}>{template.description}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.35rem' }}>
+                    Kind: {template.kind.toUpperCase()} · Accent: {template.accentColor}
+                  </div>
                   <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
                     Tap to duplicate this template into Firestore
                   </div>
