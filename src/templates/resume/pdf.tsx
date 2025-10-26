@@ -101,35 +101,101 @@ function parseYearMonth(value?: string): [string, string] {
   return [value, ''];
 }
 
-const japaneseBorderColor = '#d97766';
+function getDefaultDateParts(): [string, string, string] {
+  const now = new Date();
+  return [
+    String(now.getFullYear()),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ];
+}
+
+function parseYearMonthDay(value?: string): [string, string, string] {
+  if (!value) {
+    return ['', '', ''];
+  }
+
+  if (value.includes('-')) {
+    const [year, month, day] = value.split('-');
+    return [year ?? '', month?.padStart(2, '0') ?? '', day?.padStart(2, '0') ?? ''];
+  }
+
+  const numeric = value.match(/(\d{4})[^0-9]*(\d{1,2})[^0-9]*(\d{1,2})?/);
+  if (numeric) {
+    return [
+      numeric[1] ?? '',
+      numeric[2] ? numeric[2].padStart(2, '0') : '',
+      numeric[3] ? numeric[3].padStart(2, '0') : '',
+    ];
+  }
+
+  return [value, '', ''];
+}
+
+const japaneseBorderColor = '#d1d5db';
+const japaneseSubtleFill = '#f8fafc';
 
 const japaneseStyles = StyleSheet.create({
   container: {
     flex: 1,
     borderWidth: 1,
     borderColor: japaneseBorderColor,
-    padding: 20,
+    padding: 24,
     backgroundColor: '#ffffff',
   },
   section: {
-    marginBottom: 14,
+    marginBottom: 12,
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flex: 1,
+    marginRight: 20,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  headerRight: {
+    width: 160,
+    alignItems: 'flex-end',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 700,
+    letterSpacing: 4,
   },
   photoBox: {
-    width: 120,
-    height: 160,
+    width: 140,
+    height: 180,
     borderWidth: 1,
     borderColor: japaneseBorderColor,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 16,
+    backgroundColor: '#fafafa',
+    color: '#6b7280',
+    fontSize: 12,
   },
   nameGrid: {
     borderWidth: 1,
     borderColor: japaneseBorderColor,
-    marginTop: 12,
+    marginTop: 16,
+  },
+  applicationDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginBottom: 12,
+  },
+  dateBox: {
+    width: 48,
+    height: 28,
+    borderWidth: 1,
+    borderColor: japaneseBorderColor,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   gridRow: {
     flexDirection: 'row',
@@ -137,12 +203,12 @@ const japaneseStyles = StyleSheet.create({
     borderTopColor: japaneseBorderColor,
   },
   gridLabel: {
-    width: 110,
+    width: 100,
     borderRightWidth: 1,
     borderRightColor: japaneseBorderColor,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fef2f2',
+    backgroundColor: japaneseSubtleFill,
     paddingVertical: 8,
     fontSize: 10,
   },
@@ -165,9 +231,10 @@ const japaneseStyles = StyleSheet.create({
   tableHeading: {
     borderBottomWidth: 1,
     borderBottomColor: japaneseBorderColor,
-    backgroundColor: '#fef2f2',
+    backgroundColor: japaneseSubtleFill,
     paddingVertical: 6,
     paddingHorizontal: 10,
+    letterSpacing: 1,
   },
   tableHeadingText: {
     fontSize: 12,
@@ -411,6 +478,11 @@ function japanesePdf(content: ResumeDraftContent) {
   const licenses = getListSection(content, 'japanese-licenses');
   const remarks = getListSection(content, 'japanese-remarks');
 
+  const [defaultYear, defaultMonth, defaultDay] = getDefaultDateParts();
+  const [applicationYear, applicationMonth, applicationDay] = parseYearMonthDay(
+    getListItem(content, 'japanese-application-date', 0, `${defaultYear}-${defaultMonth}-${defaultDay}`)
+  );
+
   const educationEntries = [...content.education].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
   const experienceEntries = [...content.workExperiences].sort((a, b) =>
     (a.startDate ?? '').localeCompare(b.startDate ?? '')
@@ -435,9 +507,8 @@ function japanesePdf(content: ResumeDraftContent) {
       <Page size="A4" style={{ ...baseStyles.page, backgroundColor: '#fff' }}>
         <View style={japaneseStyles.container}>
           <View style={[japaneseStyles.section, japaneseStyles.header]}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, color: '#ef4444', fontWeight: 700 }}>履歴書</Text>
-              <Text style={{ fontSize: 10, color: '#ef4444', marginTop: 4, letterSpacing: 1 }}>RIREKISHO</Text>
+            <View style={japaneseStyles.headerLeft}>
+              <Text style={japaneseStyles.title}>履歴書</Text>
               <View style={japaneseStyles.nameGrid}>
                 <View style={[japaneseStyles.gridRow, { borderTopWidth: 0 }]}>
                   <View style={japaneseStyles.gridLabel}>
@@ -457,8 +528,25 @@ function japanesePdf(content: ResumeDraftContent) {
                 </View>
               </View>
             </View>
-            <View style={japaneseStyles.photoBox}>
-              <Text style={{ fontSize: 10, color: '#d97706' }}>写真貼付</Text>
+            <View style={japaneseStyles.headerRight}>
+              <View style={japaneseStyles.applicationDateRow}>
+                <Text style={{ fontSize: 10 }}>(</Text>
+                <View style={[japaneseStyles.dateBox, { width: 56, height: 32, marginLeft: 4 }]}>
+                  <Text style={{ fontSize: 11 }}>{applicationYear}</Text>
+                </View>
+                <Text style={{ fontSize: 10, marginLeft: 4 }}>年</Text>
+                <View style={[japaneseStyles.dateBox, { width: 36, height: 32, marginLeft: 4 }]}>
+                  <Text style={{ fontSize: 11 }}>{applicationMonth}</Text>
+                </View>
+                <Text style={{ fontSize: 10, marginLeft: 4 }}>月</Text>
+                <View style={[japaneseStyles.dateBox, { width: 36, height: 32, marginLeft: 4 }]}>
+                  <Text style={{ fontSize: 11 }}>{applicationDay}</Text>
+                </View>
+                <Text style={{ fontSize: 10, marginLeft: 4 }}>日現在 )</Text>
+              </View>
+              <View style={[japaneseStyles.photoBox, { marginTop: 12 }]}>
+                <Text>写真貼付</Text>
+              </View>
             </View>
           </View>
 
@@ -475,14 +563,14 @@ function japanesePdf(content: ResumeDraftContent) {
             </View>
             <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: japaneseBorderColor }}>
               <View style={[japaneseStyles.gridLabel, { height: 'auto', paddingVertical: 10 }]}>
-                <Text>住所</Text>
+                <Text>現住所</Text>
               </View>
               <View style={[japaneseStyles.gridValue, { paddingVertical: 10 }]}>
                 {address?.items.map((line) => (
                   <Text key={line}>{line}</Text>
                 ))}
-                {content.profile.contact.phone ? <Text>電話 {content.profile.contact.phone}</Text> : null}
-                {content.profile.contact.email ? <Text>メール {content.profile.contact.email}</Text> : null}
+                {content.profile.contact.phone ? <Text>TEL {content.profile.contact.phone}</Text> : null}
+                {content.profile.contact.email ? <Text>E-mail {content.profile.contact.email}</Text> : null}
               </View>
             </View>
           </View>
@@ -503,7 +591,16 @@ function japanesePdf(content: ResumeDraftContent) {
                 <Text style={japaneseStyles.historyLabelText}> </Text>
               </View>
               <View style={japaneseStyles.historyDescription}>
-                <Text style={[japaneseStyles.historyDescriptionText, { color: '#ef4444' }]}>以上</Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: '#6b7280',
+                    textAlign: 'right',
+                    width: '100%',
+                  }}
+                >
+                  以上
+                </Text>
               </View>
             </View>
             {experienceEntries.map((experience) => {
@@ -566,9 +663,9 @@ function japanesePdf(content: ResumeDraftContent) {
               <View style={japaneseStyles.tableHeading}>
                 <Text style={japaneseStyles.tableHeadingText}>趣味・特技</Text>
               </View>
-              <View style={[japaneseStyles.multiLine, { flexDirection: 'row', flexWrap: 'wrap' }]}>
+              <View style={[japaneseStyles.multiLine, { rowGap: 4 }]}>
                 {hobbies.items.map((item) => (
-                  <Text key={item} style={{ marginRight: 8, fontSize: 11 }}>
+                  <Text key={item} style={{ fontSize: 11 }}>
                     ・{item}
                   </Text>
                 ))}

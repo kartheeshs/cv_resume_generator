@@ -21,7 +21,42 @@ function parseYearMonth(value?: string): [string, string] {
   return [value, ''];
 }
 
+function getDefaultDateParts(): [string, string, string] {
+  const now = new Date();
+  return [
+    String(now.getFullYear()),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ];
+}
+
+function parseYearMonthDay(value?: string): [string, string, string] {
+  if (!value) {
+    return ['', '', ''];
+  }
+
+  if (value.includes('-')) {
+    const [year, month, day] = value.split('-');
+    return [year ?? '', month?.padStart(2, '0') ?? '', day?.padStart(2, '0') ?? ''];
+  }
+
+  const numeric = value.match(/(\d{4})[^0-9]*(\d{1,2})[^0-9]*(\d{1,2})?/);
+  if (numeric) {
+    return [
+      numeric[1] ?? '',
+      numeric[2] ? numeric[2].padStart(2, '0') : '',
+      numeric[3] ? numeric[3].padStart(2, '0') : '',
+    ];
+  }
+
+  return [value, '', ''];
+}
+
 export function JapaneseTemplate({ content }: TemplatePreviewProps) {
+  const [defaultYear, defaultMonth, defaultDay] = getDefaultDateParts();
+  const [applicationYear, applicationMonth, applicationDay] = parseYearMonthDay(
+    getItem(content, 'japanese-application-date', 0, `${defaultYear}-${defaultMonth}-${defaultDay}`)
+  );
   const furigana = getItem(content, 'japanese-furigana', 0, 'やまだ たろう');
   const birth = getItem(content, 'japanese-personal', 0, '1995年4月12日生（満28歳）');
   const gender = getItem(content, 'japanese-personal', 1, '男');
@@ -61,7 +96,9 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
     (a.startDate ?? '').localeCompare(b.startDate ?? '')
   );
 
-  const tableBorder = '1px solid #d97766';
+  const borderColor = '#d1d5db';
+  const subtleFill = '#f8fafc';
+  const tableBorder = `1px solid ${borderColor}`;
 
   const renderHistoryRow = (
     year: string,
@@ -75,14 +112,43 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
         display: 'grid',
         gridTemplateColumns: '56px 56px 1fr',
         borderBottom: tableBorder,
-        minHeight: '44px',
+        minHeight: '40px',
+        fontSize: '12px',
       }}
     >
-      <div style={{ borderRight: tableBorder, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{year}</div>
-      <div style={{ borderRight: tableBorder, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{month}</div>
+      <div
+        style={{ borderRight: tableBorder, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {year}
+      </div>
+      <div
+        style={{ borderRight: tableBorder, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        {month}
+      </div>
       <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center' }}>{description}</div>
     </div>
   );
+
+  const pageStyle = {
+    width: '540px',
+    minHeight: '760px',
+    border: tableBorder,
+    padding: '20px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+    background: '#fff',
+  };
+
+  const sectionHeadingStyle = {
+    borderBottom: tableBorder,
+    padding: '8px 12px',
+    fontWeight: 700,
+    background: subtleFill,
+    fontSize: '12px',
+    letterSpacing: '0.08em',
+  };
 
   return (
     <div
@@ -92,76 +158,99 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
         display: 'flex',
         gap: '16px',
         justifyContent: 'center',
+        padding: '16px',
+        background: '#f3f4f6',
       }}
     >
-      <div
-        style={{
-          width: '540px',
-          minHeight: '760px',
-          border: tableBorder,
-          padding: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          background: '#fff',
-        }}
-      >
-        <header style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '16px', alignItems: 'start' }}>
+      <div style={pageStyle}>
+        <header
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 160px',
+            gap: '20px',
+            alignItems: 'start',
+          }}
+        >
           <div>
-            <div style={{ fontSize: '14px', color: '#ef4444', fontWeight: 700, letterSpacing: '0.08em' }}>履歴書</div>
-            <div style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>RIREKISHO</div>
+            <div style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '0.4em' }}>履歴書</div>
             <div
               style={{
                 border: tableBorder,
-                marginTop: '12px',
+                marginTop: '16px',
                 display: 'grid',
-                gridTemplateColumns: '120px 1fr',
-                minHeight: '96px',
+                gridTemplateColumns: '100px 1fr',
               }}
             >
               <div
                 style={{
                   borderRight: tableBorder,
+                  padding: '8px',
+                  background: subtleFill,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: '#fef2f2',
                   fontSize: '12px',
                 }}
               >
                 ふりがな
               </div>
-              <div style={{ padding: '8px 12px', fontSize: '14px' }}>{furigana}</div>
+              <div style={{ padding: '8px 12px', fontSize: '13px' }}>{furigana}</div>
               <div
                 style={{
                   borderTop: tableBorder,
                   borderRight: tableBorder,
+                  padding: '8px',
+                  background: subtleFill,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: '#fef2f2',
                   fontSize: '12px',
                 }}
               >
                 氏名
               </div>
-              <div style={{ padding: '8px 12px', fontSize: '18px', fontWeight: 700 }}>{content.profile.fullName}</div>
+              <div style={{ padding: '10px 12px', fontSize: '18px', fontWeight: 700 }}>{content.profile.fullName}</div>
             </div>
           </div>
-          <div
-            style={{
-              border: tableBorder,
-              height: '160px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'linear-gradient(135deg, #fde68a, #fff)',
-              color: '#d97706',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}
-          >
-            写真貼付
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'auto 56px auto 36px auto 36px auto',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+              }}
+            >
+              <span>（</span>
+              <div style={{ border: tableBorder, width: '56px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {applicationYear}
+              </div>
+              <span>年</span>
+              <div style={{ border: tableBorder, width: '36px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {applicationMonth}
+              </div>
+              <span>月</span>
+              <div style={{ border: tableBorder, width: '36px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {applicationDay}
+              </div>
+              <span>日現在 ）</span>
+            </div>
+            <div
+              style={{
+                border: tableBorder,
+                width: '140px',
+                height: '180px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#fafafa',
+                color: '#6b7280',
+                fontSize: '12px',
+              }}
+            >
+              写真貼付
+            </div>
           </div>
         </header>
 
@@ -170,41 +259,41 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
             border: tableBorder,
             display: 'grid',
             gridTemplateColumns: '120px 1fr',
+            fontSize: '12px',
           }}
         >
-          <div style={{ borderRight: tableBorder, background: '#fef2f2', padding: '12px', fontSize: '12px' }}>生年月日</div>
-          <div style={{ padding: '12px 16px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+          <div style={{ borderRight: tableBorder, background: subtleFill, padding: '12px' }}>生年月日</div>
+          <div style={{ padding: '12px 16px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <span>{birth}</span>
             <span>性別 {gender}</span>
             <span>{commute}</span>
           </div>
-          <div style={{ borderTop: tableBorder, borderRight: tableBorder, background: '#fef2f2', padding: '12px', fontSize: '12px' }}>
-            住所
-          </div>
+          <div style={{ borderTop: tableBorder, borderRight: tableBorder, background: subtleFill, padding: '12px' }}>現住所</div>
           <div style={{ borderTop: tableBorder, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span>{addressLine}</span>
             <span>{nearestStation}</span>
-            {content.profile.contact.phone && <span>電話 {content.profile.contact.phone}</span>}
-            {content.profile.contact.email && <span>メール {content.profile.contact.email}</span>}
+            {content.profile.contact.phone && <span>TEL {content.profile.contact.phone}</span>}
+            {content.profile.contact.email && <span>E-mail {content.profile.contact.email}</span>}
           </div>
         </div>
 
         <div style={{ border: tableBorder }}>
-          <div
-            style={{
-              borderBottom: tableBorder,
-              padding: '8px 12px',
-              fontWeight: 700,
-              background: '#fef2f2',
-            }}
-          >
-            学歴・職歴
-          </div>
+          <div style={sectionHeadingStyle}>学歴・職歴</div>
           {educationEntries.map((education) => {
             const [year, month] = parseYearMonth(education.startDate);
             return renderHistoryRow(year, month, `${education.school} ${education.degree}`, education.id);
           })}
-          <div style={{ borderBottom: tableBorder, padding: '6px 12px', fontSize: '12px', color: '#ef4444' }}>以上</div>
+          <div
+            style={{
+              borderBottom: tableBorder,
+              padding: '6px 12px',
+              fontSize: '12px',
+              color: '#6b7280',
+              textAlign: 'right',
+            }}
+          >
+            以上
+          </div>
           {experienceEntries.map((experience) => {
             const [year, month] = parseYearMonth(experience.startDate);
             return renderHistoryRow(year, month, `${experience.company} ${experience.title}`, experience.id);
@@ -213,7 +302,7 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
 
         {licenses ? (
           <div style={{ border: tableBorder }}>
-            <div style={{ borderBottom: tableBorder, padding: '8px 12px', fontWeight: 700, background: '#fef2f2' }}>免許・資格</div>
+            <div style={sectionHeadingStyle}>免許・資格</div>
             {licenses.items.map((item, index) => {
               const [date, description] = item.split('|');
               const [year, month] = parseYearMonth(date);
@@ -224,62 +313,42 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
         ) : null}
 
         <div style={{ border: tableBorder }}>
-          <div style={{ borderBottom: tableBorder, padding: '8px 12px', fontWeight: 700, background: '#fef2f2' }}>本人希望欄</div>
+          <div style={sectionHeadingStyle}>本人希望欄</div>
           <div
-            style={{ minHeight: '88px', padding: '12px 16px', lineHeight: 1.7, whiteSpace: 'pre-line' }}
+            style={{ minHeight: '88px', padding: '12px 16px', lineHeight: 1.7, whiteSpace: 'pre-line', fontSize: '12px' }}
           >
             {remarks?.items.join('\n') ?? '特記事項なし'}
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          width: '540px',
-          minHeight: '760px',
-          border: tableBorder,
-          padding: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          background: '#fff',
-        }}
-      >
+      <div style={pageStyle}>
         <div style={{ border: tableBorder }}>
-          <div style={{ borderBottom: tableBorder, padding: '8px 12px', fontWeight: 700, background: '#fef2f2' }}>志望動機</div>
-          <div style={{ minHeight: '120px', padding: '12px 16px', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{objective}</div>
+          <div style={sectionHeadingStyle}>志望動機</div>
+          <div style={{ minHeight: '120px', padding: '12px 16px', lineHeight: 1.7, whiteSpace: 'pre-line', fontSize: '12px' }}>
+            {objective}
+          </div>
         </div>
 
         <div style={{ border: tableBorder }}>
-          <div style={{ borderBottom: tableBorder, padding: '8px 12px', fontWeight: 700, background: '#fef2f2' }}>自己PR</div>
-          <div style={{ minHeight: '120px', padding: '12px 16px', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{selfPr}</div>
+          <div style={sectionHeadingStyle}>自己PR</div>
+          <div style={{ minHeight: '120px', padding: '12px 16px', lineHeight: 1.7, whiteSpace: 'pre-line', fontSize: '12px' }}>{selfPr}</div>
         </div>
 
         {hobbies ? (
           <div style={{ border: tableBorder }}>
-            <div style={{ borderBottom: tableBorder, padding: '8px 12px', fontWeight: 700, background: '#fef2f2' }}>趣味・特技</div>
-            <div style={{ padding: '12px 16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={sectionHeadingStyle}>趣味・特技</div>
+            <div style={{ padding: '12px 16px', fontSize: '12px', lineHeight: 1.6 }}>
               {hobbies.items.map((item) => (
-                <span
-                  key={item}
-                  style={{
-                    border: '1px solid #fca5a5',
-                    borderRadius: '9999px',
-                    padding: '6px 14px',
-                    background: '#fef2f2',
-                    fontSize: '13px',
-                  }}
-                >
-                  {item}
-                </span>
+                <div key={item}>・{item}</div>
               ))}
             </div>
           </div>
         ) : null}
 
         <div style={{ border: tableBorder }}>
-          <div style={{ borderBottom: tableBorder, padding: '8px 12px', fontWeight: 700, background: '#fef2f2' }}>通勤・家族状況</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '96px' }}>
+          <div style={sectionHeadingStyle}>通勤・家族状況</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '96px', fontSize: '12px' }}>
             <div style={{ borderRight: tableBorder, padding: '12px 16px', display: 'flex', alignItems: 'center' }}>{dependents}</div>
             <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center' }}>{spouse}</div>
           </div>
@@ -287,8 +356,8 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
 
         {emergency ? (
           <div style={{ border: tableBorder }}>
-            <div style={{ borderBottom: tableBorder, padding: '8px 12px', fontWeight: 700, background: '#fef2f2' }}>緊急連絡先</div>
-            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={sectionHeadingStyle}>緊急連絡先</div>
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
               {emergency.items.map((item, index) => (
                 <span key={`${emergency.id}-${index}`}>{item}</span>
               ))}
