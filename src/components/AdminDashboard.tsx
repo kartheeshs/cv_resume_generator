@@ -218,19 +218,11 @@ export function AdminDashboard() {
   const syncSubscription = async (userId: string) => {
     try {
       setSyncingUserId(userId);
-      const response = await fetch('/api/subscription/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { message?: string };
-      if (!response.ok) {
-        throw new Error(payload.message ?? 'Failed to sync subscription.');
-      }
-      setStatus('Subscription status synced successfully.');
+      await new Promise((resolve) => setTimeout(resolve, 320));
+      setStatus('Subscription status refreshed (demo mode).');
     } catch (error) {
-      console.error('Failed to sync subscription', error);
-      setStatus('Unable to sync subscription status.');
+      console.error('Demo subscription refresh failed', error);
+      setStatus('Unable to refresh the subscription status right now.');
     } finally {
       setSyncingUserId(null);
     }
@@ -262,11 +254,14 @@ export function AdminDashboard() {
 
   return (
     <section style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto', display: 'grid', gap: '1.5rem' }}>
-      <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '1rem', border: '1px solid #e2e8f0' }}>
+      <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '1rem', border: '1px solid #e2e8f0', boxShadow: '0 24px 60px -35px rgba(15, 23, 42, 0.25)' }}>
         <h1 style={{ margin: '0 0 0.5rem', fontSize: '2rem' }}>Admin control center</h1>
         <p style={{ margin: 0, color: '#475569' }}>
           Manage users, downloads, and subscriptions. Signed in as <strong>{profile?.email}</strong> with
           <strong> {profile?.role}</strong> access.
+        </p>
+        <p style={{ margin: '0.5rem 0 0', color: '#6366f1', fontWeight: 500 }}>
+          Stripe automation is running in demo mode—actions here simulate the real billing flows.
         </p>
         {status && (
           <p style={{ marginTop: '1rem', color: '#2563eb' }}>
@@ -390,7 +385,7 @@ export function AdminDashboard() {
                     <th style={{ padding: '0.75rem 0.5rem' }}>Role</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>Downloads left</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Stripe status</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Subscription status</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>Joined</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>Actions</th>
                   </tr>
@@ -464,7 +459,7 @@ export function AdminDashboard() {
                               color: syncingUserId === userRow.id ? '#1e3a8a' : '#fff',
                             }}
                           >
-                            {syncingUserId === userRow.id ? 'Syncing…' : 'Sync Stripe'}
+                            {syncingUserId === userRow.id ? 'Syncing…' : 'Refresh status'}
                           </button>
                         </div>
                       </td>
@@ -532,7 +527,7 @@ export function AdminDashboard() {
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Email</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Stripe customer</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Customer reference</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Status</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Period end</th>
@@ -561,7 +556,7 @@ export function AdminDashboard() {
                             color: syncingUserId === userRow.id ? '#1e3a8a' : '#fff',
                           }}
                         >
-                          {syncingUserId === userRow.id ? 'Syncing…' : 'Sync status'}
+                          {syncingUserId === userRow.id ? 'Syncing…' : 'Refresh status'}
                         </button>
                       </td>
                     </tr>

@@ -1,7 +1,6 @@
 'use client';
 
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
 import {
   Timestamp,
   addDoc,
@@ -258,9 +257,6 @@ export function ResumeDashboard() {
   const [openingPortal, setOpeningPortal] = useState(false);
 
   const entitlements = profile?.entitlements;
-  const proPriceId = process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID;
-  const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-
   useEffect(() => {
     if (!user) return;
 
@@ -459,22 +455,14 @@ export function ResumeDashboard() {
       }
       setSyncingSubscription(true);
       try {
-        const response = await fetch('/api/subscription/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.uid }),
-        });
-        const payload = (await response.json().catch(() => ({}))) as { message?: string };
-        if (!response.ok) {
-          throw new Error(payload.message ?? 'Failed to sync subscription.');
-        }
+        await new Promise((resolve) => setTimeout(resolve, 350));
         await refreshProfile();
         if (!options?.silent) {
-          setStatus('Subscription synced successfully.');
+          setStatus('Subscription data refreshed (demo mode).');
         }
       } catch (error) {
-        console.error('Failed to sync subscription', error);
-        setStatus('Unable to sync subscription details. Try again later.');
+        console.error('Demo subscription sync failed', error);
+        setStatus('Unable to refresh subscription details right now.');
       } finally {
         setSyncingSubscription(false);
       }
@@ -487,60 +475,17 @@ export function ResumeDashboard() {
       setStatus('Sign in to upgrade your subscription.');
       return;
     }
-    if (!proPriceId) {
-      setStatus('Stripe price configuration missing.');
-      return;
-    }
     setStartingCheckout(true);
     try {
-      const response = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.uid,
-          priceId: proPriceId,
-          successUrl:
-            typeof window !== 'undefined'
-              ? `${window.location.origin}/dashboard?upgrade=success`
-              : undefined,
-          cancelUrl:
-            typeof window !== 'undefined'
-              ? `${window.location.origin}/dashboard?upgrade=cancelled`
-              : undefined,
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as {
-        url?: string;
-        message?: string;
-        sessionId?: string;
-      };
-      if (!response.ok) {
-        throw new Error(payload.message ?? 'Failed to start checkout.');
-      }
-      if (payload.sessionId && stripePublishableKey) {
-        const stripe = await loadStripe(stripePublishableKey);
-        if (stripe) {
-          const result = await stripe.redirectToCheckout({ sessionId: payload.sessionId });
-          if (result.error) {
-            console.error('Stripe redirect error', result.error);
-            setStatus(result.error.message ?? 'Stripe checkout failed to open.');
-          } else {
-            return;
-          }
-        }
-      }
-      if (payload.url) {
-        window.location.href = payload.url;
-        return;
-      }
-      setStatus('Unable to start checkout. Please try again.');
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      setStatus('Stripe billing runs in demo mode right now. Contact the team to enable live checkout.');
     } catch (error) {
-      console.error('Failed to start checkout', error);
-      setStatus('Unable to start checkout. Please try again.');
+      console.error('Demo checkout trigger failed', error);
+      setStatus('Unable to trigger the demo checkout flow.');
     } finally {
       setStartingCheckout(false);
     }
-  }, [proPriceId, stripePublishableKey, user]);
+  }, [user]);
 
   const openBillingPortal = useCallback(async () => {
     if (!user) {
@@ -549,27 +494,11 @@ export function ResumeDashboard() {
     }
     setOpeningPortal(true);
     try {
-      const response = await fetch('/api/stripe/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.uid,
-          returnUrl:
-            typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : undefined,
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { url?: string; message?: string };
-      if (!response.ok) {
-        throw new Error(payload.message ?? 'Failed to open billing portal.');
-      }
-      if (payload.url) {
-        window.location.href = payload.url;
-        return;
-      }
-      setStatus('Unable to open the billing portal.');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      setStatus('Billing portal access is disabled in the demo environment.');
     } catch (error) {
-      console.error('Failed to open billing portal', error);
-      setStatus('Unable to open the billing portal.');
+      console.error('Demo billing portal error', error);
+      setStatus('Unable to open the demo billing portal.');
     } finally {
       setOpeningPortal(false);
     }
@@ -2104,7 +2033,7 @@ export function ResumeDashboard() {
                     {profile?.subscription && (
                       <>
                         <span style={{ color: '#64748b' }}>
-                          Stripe status: {profile.subscription.status ?? 'unknown'}
+                          Subscription status: {profile.subscription.status ?? 'unknown'}
                         </span>
                         {profile.subscription.currentPeriodEnd && (
                           <span style={{ color: '#64748b' }}>
