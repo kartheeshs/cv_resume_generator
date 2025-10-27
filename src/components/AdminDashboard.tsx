@@ -77,6 +77,7 @@ export function AdminDashboard() {
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [loadingDownloads, setLoadingDownloads] = useState(true);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const activeTabDefinition = ADMIN_TABS.find((tab) => tab.id === activeTab);
 
   useEffect(() => {
     const userQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -280,95 +281,109 @@ export function AdminDashboard() {
     >
       <header
         style={{
-          background: '#0f172a',
-          color: '#f8fafc',
-          borderBottom: '1px solid rgba(148, 163, 184, 0.25)',
-          padding: '1rem 1.5rem',
           position: 'sticky',
           top: 0,
           zIndex: 30,
-          display: 'grid',
-          gap: '0.75rem',
+          background: 'rgba(248, 250, 252, 0.92)',
+          backdropFilter: 'blur(14px)',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.3)',
         }}
       >
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '1rem',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: '1.1rem 1.75rem',
+            display: 'grid',
+            gap: '0.9rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span
-              aria-hidden
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '1rem',
-                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(14, 165, 233, 0.85))',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 14px 30px -22px rgba(14, 165, 233, 0.9)',
-              }}
-            >
-              <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '0.08em' }}>GM</span>
-            </span>
-            <div style={{ display: 'grid', lineHeight: 1.2 }}>
-              <span style={{ fontWeight: 700, letterSpacing: '0.02em' }}>Career Studio GM7</span>
-              <span style={{ fontSize: '0.85rem', color: '#c7d2fe', letterSpacing: '0.08em' }}>Admin Console</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => signOut()}
+          <div
             style={{
-              border: 'none',
-              background: 'linear-gradient(135deg, #22d3ee, #6366f1)',
-              color: '#0f172a',
-              padding: '0.55rem 1.1rem',
-              borderRadius: '9999px',
-              fontWeight: 600,
-              boxShadow: '0 18px 40px -26px rgba(34, 211, 238, 0.65)',
-              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '1rem',
             }}
           >
-            Sign out
-          </button>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            gap: '0.5rem',
-            flexWrap: 'wrap',
-            overflowX: 'auto',
-            paddingBottom: '0.25rem',
-          }}
-        >
-          {ADMIN_TABS.map((tab) => {
-            const isActive = tab.id === activeTab;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <span
+                aria-hidden
                 style={{
-                  padding: '0.55rem 1.1rem',
-                  borderRadius: '9999px',
-                  border: isActive ? '1px solid rgba(59, 130, 246, 0.9)' : '1px solid rgba(148, 163, 184, 0.35)',
-                  background: isActive ? 'rgba(14, 165, 233, 0.18)' : 'rgba(15, 23, 42, 0.35)',
-                  color: '#f8fafc',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(12px)',
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '1.1rem',
+                  background: 'linear-gradient(135deg, rgba(14,165,233,0.18), rgba(79,70,229,0.2))',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#1d4ed8',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
                 }}
               >
-                {tab.label}
-              </button>
-            );
-          })}
+                GM
+              </span>
+              <div style={{ display: 'grid', lineHeight: 1.2 }}>
+                <span style={{ fontWeight: 700, letterSpacing: '0.01em', color: '#0f172a' }}>Career Studio GM7</span>
+                <span style={{ fontSize: '0.85rem', color: '#64748b', letterSpacing: '0.08em' }}>Admin Console</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              style={{
+                border: '1px solid rgba(37, 99, 235, 0.3)',
+                background: '#2563eb',
+                color: '#fff',
+                padding: '0.55rem 1.2rem',
+                borderRadius: '0.8rem',
+                fontWeight: 600,
+                boxShadow: '0 12px 28px -20px rgba(37, 99, 235, 0.45)',
+                cursor: 'pointer',
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+          <div style={{ display: 'grid', gap: '0.35rem' }}>
+            <nav
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              {ADMIN_TABS.map((tab) => {
+                const isActive = tab.id === activeTab;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      padding: '0.75rem 1rem',
+                      fontWeight: 600,
+                      color: isActive ? '#0f172a' : '#64748b',
+                      borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
+                      borderRadius: '0.6rem 0.6rem 0 0',
+                      cursor: 'pointer',
+                      transition: 'color 0.2s ease, border-color 0.2s ease',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+            {activeTabDefinition && (
+              <span style={{ color: '#475569', fontSize: '0.85rem' }}>{activeTabDefinition.description}</span>
+            )}
+          </div>
         </div>
       </header>
 

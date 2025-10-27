@@ -33,6 +33,32 @@ const metrics = [
   { label: 'Draft autosave', value: 'Realtime' },
 ];
 
+const heroMetadata = [
+  { label: 'Latest update', value: 'June 2024' },
+  { label: 'Version', value: 'v2.1' },
+  { label: 'Access', value: 'Included with Growth plan' },
+];
+
+const resourceLinks = [
+  {
+    title: 'Platform overview',
+    description: 'Understand the editor workflow from login to PDF export.',
+    href: '/#overview',
+  },
+  {
+    title: 'Template showcase',
+    description: 'Preview localized resume and CV layouts built into the product.',
+    href: '/#templates',
+  },
+  {
+    title: 'Pricing & limits',
+    description: 'Compare free, growth, and enterprise entitlements at a glance.',
+    href: '/#pricing',
+  },
+];
+
+const tags = ['Resume builder', 'Design system', 'Hiring', 'Templates', 'PDF', 'Firebase'];
+
 const templateShowcase = Object.values(resumeTemplateDefinitions).slice(0, 4);
 
 type PricingPlan = {
@@ -88,140 +114,226 @@ const pricingPlans: PricingPlan[] = [
   },
 ];
 
-function withOpacity(hex: string, alpha: number) {
-  const normalized = hex.replace('#', '');
-  if (normalized.length !== 6) {
-    return hex;
-  }
-
-  const r = parseInt(normalized.slice(0, 2), 16);
-  const g = parseInt(normalized.slice(2, 4), 16);
-  const b = parseInt(normalized.slice(4, 6), 16);
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+const previewBackdrop: CSSProperties = {
+  background:
+    'radial-gradient(circle at 12% 12%, rgba(79,70,229,0.15) 0%, rgba(79,70,229,0) 45%), radial-gradient(circle at 88% 20%, rgba(14,165,233,0.18) 0%, rgba(14,165,233,0) 50%), linear-gradient(155deg, #0f172a 0%, #312e81 45%, #1e1b4b 100%)',
+};
 
 export default function LandingPage() {
   return (
     <div className={styles.page}>
-      <div className={styles.wrapper}>
-        <section className={styles.hero}>
-          <div className={styles.heroContent}>
-            <span className={styles.heroBadge}>Career Studio GM7</span>
-            <h1 className={styles.heroTitle}>
-              Career Studio GM7 turns accomplishments into beautifully typeset resumes in minutes.
-            </h1>
-            <p className={styles.heroCopy}>
-              Our platform blends a polished authoring environment with international-ready templates, PDF exports, and
-              admin controls so your team can scale hiring collateral without sacrificing design quality.
-            </p>
-            <div className={styles.actions}>
-              <Link href="/login" className={styles.primaryButton}>
-                Get started
-              </Link>
-              <Link href="/dashboard" className={styles.secondaryButton}>
-                Enter the app
-              </Link>
-            </div>
+      <div className={styles.shell}>
+        <section className={styles.heroSection}>
+          <div className={styles.heroBreadcrumbs}>
+            <Link href="/">Career Studio GM7</Link>
+            <span aria-hidden>•</span>
+            <span>Resume editor website flow</span>
           </div>
 
-          <aside className={styles.heroCard}>
-            <div className={styles.metricGrid}>
-              {metrics.map((metric) => (
-                <div key={metric.label} className={styles.metricCard}>
-                  <strong>{metric.value}</strong>
-                  <span>{metric.label}</span>
+          <div className={styles.heroLayout}>
+            <div className={styles.preview}>
+              <div className={styles.previewToolbar}>
+                <span>Resume Editor Website Flow</span>
+                <div className={styles.previewToolbarMeta}>
+                  <span>Last updated {heroMetadata[0].value}</span>
+                  <span>1.2k previews</span>
                 </div>
-              ))}
+              </div>
+              <div className={styles.previewCanvas} style={previewBackdrop}>
+                <div className={styles.previewContent}>
+                  <span>Career Studio GM7</span>
+                  <h2>Modern resumes without wrestling with layout files</h2>
+                  <p>
+                    Pick a template, tailor the copy, and hand a recruiter a polished PDF minutes after signing in. Team
+                    guardrails make every export feel on-brand.
+                  </p>
+                  <ul>
+                    {features.slice(0, 3).map((feature) => (
+                      <li key={feature.title}>{feature.title}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
-            <p className={styles.heroCopy}>
-              Built with your technology preferences in mind—Next.js 14, Firebase, and modern PDF rendering—all wrapped in
-              a refined product experience.
+
+            <aside className={styles.heroPanel}>
+              <span className={styles.heroBadge}>Career Studio GM7</span>
+              <h1 className={styles.heroTitle}>Build resume experiences your candidates will love</h1>
+              <p className={styles.heroCopy}>
+                Designed to echo a polished product page, this flow showcases pricing, templates, and authentication while
+                keeping admin utilities only a direct URL away. Everything is tuned for clarity when you share it with
+                stakeholders.
+              </p>
+              <div className={styles.heroStats}>
+                {metrics.map((metric) => (
+                  <div key={metric.label} className={styles.heroStat}>
+                    <span>{metric.value}</span>
+                    <small>{metric.label}</small>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.heroActions}>
+                <Link href="/login" className={styles.primaryAction}>
+                  Launch editor
+                </Link>
+                <Link href="/#templates" className={styles.secondaryAction}>
+                  Preview templates
+                </Link>
+              </div>
+              <dl className={styles.heroMetaList}>
+                {heroMetadata.map((item) => (
+                  <div key={item.label}>
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </aside>
+          </div>
+        </section>
+
+        <section id="overview" className={styles.contentSection}>
+          <article className={styles.overview}>
+            <h2>Overview</h2>
+            <p>
+              A landing experience inspired by Figma community resources—introducing a hero preview, detailed release
+              metadata, and a modular layout that surfaces features, templates, and plan restrictions without feeling
+              crowded.
             </p>
+            <ul className={styles.highlightList}>
+              {features.map((feature) => (
+                <li key={feature.title} className={styles.highlightItem}>
+                  <h3>{feature.title}</h3>
+                  <p>{feature.description}</p>
+                </li>
+              ))}
+            </ul>
+          </article>
+
+          <aside className={styles.sidebar}>
+            <div className={styles.infoCard}>
+              <h3>Project metadata</h3>
+              <dl className={styles.infoList}>
+                {heroMetadata.map((item) => (
+                  <div key={`meta-${item.label}`}>
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
+                  </div>
+                ))}
+                <div>
+                  <dt>Maintainer</dt>
+                  <dd>Career Studio GM7 design systems</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className={styles.infoCard}>
+              <h3>Resources</h3>
+              <ul className={styles.resourceList}>
+                {resourceLinks.map((resource) => (
+                  <li key={resource.title}>
+                    <Link href={resource.href}>
+                      <span>{resource.title}</span>
+                      <small>{resource.description}</small>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className={styles.tagCard}>
+              <h3>Tags</h3>
+              <div className={styles.tagList}>
+                {tags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
+            </div>
           </aside>
         </section>
 
-        <section id="features" className={styles.featureGrid}>
-          {features.map((feature) => (
-            <article key={feature.title} className={styles.featureCard}>
-              <h3>{feature.title}</h3>
-              <p>{feature.description}</p>
-            </article>
-          ))}
-        </section>
-
-        <section id="templates" className={styles.templateShowcase}>
+        <section id="templates" className={styles.templateSection}>
           <div className={styles.sectionHeader}>
-            <h2>Template gallery with instant previews</h2>
+            <h2>Template gallery</h2>
             <p>
-              Browse globally minded resume and CV templates. Every layout ships with curated sample content so teams can share a
-              polished draft in minutes.
+              Browse localized resume systems with typography tuned for hiring teams. Each template ships with rich sample
+              data so stakeholders see exactly how content comes together.
             </p>
           </div>
           <div className={styles.templateGrid}>
-            {templateShowcase.map((template) => {
-              const accentBackground = `linear-gradient(155deg, ${withOpacity(template.accentColor, 0.18)}, #ffffff)`;
-              const cardStyle: CSSProperties = {
-                borderColor: withOpacity(template.accentColor, 0.35),
-              };
-              return (
-                <article key={template.id} className={styles.templateCard} style={cardStyle}>
-                  <div className={styles.templatePreview} style={{ background: accentBackground }}>
-                    <div className={styles.templatePreviewInner}>
-                      <div className={styles.templatePreviewContent}>{template.renderPreview(template.defaultContent)}</div>
+            {templateShowcase.map((definition) => (
+              <article key={definition.id} className={styles.templateCard}>
+                <span className={styles.templateBadge}>{definition.name}</span>
+                <div className={styles.templatePreview}>
+                  <div className={styles.templatePreviewInner}>
+                    <div className={styles.templatePreviewContent}>
+                      {definition.renderPreview(definition.defaultContent)}
                     </div>
                   </div>
-                  <div className={styles.templateMeta}>
-                    <span className={styles.templateBadge}>
-                      {template.kind === 'cv' ? 'CV template' : 'Resume template'}
-                    </span>
-                    <h3>{template.name}</h3>
-                    <p>{template.description}</p>
-                  </div>
-                </article>
-              );
-            })}
+                </div>
+                <div className={styles.templateMeta}>
+                  <h3>{definition.name}</h3>
+                  <p>{definition.description}</p>
+                  <Link href="/login" className={styles.templateLink}>
+                    Use this template
+                  </Link>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
         <section id="pricing" className={styles.pricingSection}>
           <div className={styles.sectionHeader}>
-            <h2>Pricing that scales with your hiring pipeline</h2>
+            <h2>Pricing & availability</h2>
             <p>
-              Start for free, then unlock collaboration, brand controls, and compliance features when you need them. Cancel or
-              change plans at any time.
+              Free plans showcase the full editor once, Growth unlocks collaborative workflows, and Enterprise brings
+              governance plus bespoke template production.
             </p>
           </div>
           <div className={styles.pricingGrid}>
-            {pricingPlans.map((plan) => {
-              const planClasses = [styles.pricingCard, plan.highlighted ? styles.pricingCardHighlighted : '']
-                .filter(Boolean)
-                .join(' ');
-              return (
-                <article key={plan.name} className={planClasses}>
-                  {plan.badge && <span className={styles.pricingBadge}>{plan.badge}</span>}
-                  <header className={styles.pricingHeader}>
-                    <h3>{plan.name}</h3>
-                    <p className={styles.pricingDescription}>{plan.description}</p>
-                    <div className={styles.pricingPrice}>
-                      <span>{plan.price}</span>
-                      {plan.frequency && <small>{plan.frequency}</small>}
-                    </div>
-                  </header>
-                  <ul className={styles.pricingFeatures}>
-                    {plan.features.map((feature) => (
-                      <li key={feature}>{feature}</li>
-                    ))}
-                  </ul>
-                  <Link
-                    href={plan.href}
-                    className={plan.highlighted ? styles.pricingPrimaryButton : styles.pricingSecondaryButton}
-                  >
-                    {plan.cta}
-                  </Link>
-                </article>
-              );
-            })}
+            {pricingPlans.map((plan) => (
+              <article
+                key={plan.name}
+                className={`${styles.pricingCard} ${plan.highlighted ? styles.pricingHighlighted : ''}`}
+              >
+                {plan.badge && <span className={styles.pricingBadge}>{plan.badge}</span>}
+                <div className={styles.pricingHeader}>
+                  <h3>{plan.name}</h3>
+                  <p>{plan.description}</p>
+                </div>
+                <div className={styles.pricingPrice}>
+                  <span>{plan.price}</span>
+                  {plan.frequency && <small>{plan.frequency}</small>}
+                </div>
+                <ul className={styles.pricingFeatures}>
+                  {plan.features.map((feature) => (
+                    <li key={`${plan.name}-${feature}`}>{feature}</li>
+                  ))}
+                </ul>
+                <Link href={plan.href} className={styles.pricingButton}>
+                  {plan.cta}
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.ctaBanner}>
+          <div>
+            <h2>Ready to build your next standout resume?</h2>
+            <p>
+              Sign in to Career Studio GM7 to unlock the editor, invite collaborators, and manage download limits with a
+              click.
+            </p>
+          </div>
+          <div className={styles.ctaActions}>
+            <Link href="/login" className={styles.primaryAction}>
+              Sign in to continue
+            </Link>
+            <Link href="/dashboard" className={styles.secondaryAction}>
+              Explore dashboard
+            </Link>
           </div>
         </section>
       </div>

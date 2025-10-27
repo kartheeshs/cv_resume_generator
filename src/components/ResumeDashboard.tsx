@@ -259,6 +259,7 @@ export function ResumeDashboard() {
   const entitlements = profile?.entitlements;
   const freeDownloadsDepleted =
     entitlements?.plan === 'free' && (entitlements.remainingDownloads ?? 0) <= 0;
+  const activeMenu = DASHBOARD_MENU.find((item) => item.id === activeSection);
   useEffect(() => {
     if (!user) return;
 
@@ -800,59 +801,167 @@ export function ResumeDashboard() {
     }));
 
   return (
-    <section style={{ padding: '1.5rem 1rem' }}>
+    <section style={{ padding: '2rem 1.25rem', background: '#f8fafc', minHeight: '100%' }}>
       <div
         style={{
           maxWidth: '1280px',
           margin: '0 auto',
           display: 'grid',
-          gap: '1.5rem',
+          gap: '1.75rem',
         }}
       >
-        <div
+        <header
           style={{
             background: '#fff',
-            borderRadius: '1rem',
+            borderRadius: '1.25rem',
             border: '1px solid #e2e8f0',
-            padding: '1.5rem',
-            display: 'grid',
-            gap: '1rem',
+            boxShadow: '0 32px 90px -60px rgba(15, 23, 42, 0.35)',
+            overflow: 'hidden',
           }}
         >
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Workspace</h2>
-            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>Switch between tools and resources.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            {DASHBOARD_MENU.map((item) => {
-              const isActive = item.id === activeSection;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveSection(item.id)}
+          <div
+            style={{
+              padding: '1.5rem 1.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '1.25rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+              <span
+                aria-hidden
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '1.2rem',
+                  background:
+                    'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(14,165,233,0.25))',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#1d4ed8',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                }}
+              >
+                GM7
+              </span>
+              <div style={{ display: 'grid', gap: '0.2rem' }}>
+                <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>
+                  GM7 Resume Studio
+                </span>
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  {profile?.email ?? user?.email ?? 'Signed in member'}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {entitlements ? (
+                <>
+                  <div
+                    style={{
+                      background: '#f1f5f9',
+                      borderRadius: '0.75rem',
+                      padding: '0.65rem 0.95rem',
+                      display: 'grid',
+                      gap: '0.2rem',
+                      minWidth: '140px',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
+                        color: '#64748b',
+                      }}
+                    >
+                      Plan
+                    </span>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>{entitlements.plan.toUpperCase()}</span>
+                  </div>
+                  <div
+                    style={{
+                      background: freeDownloadsDepleted ? '#fee2e2' : '#ecfeff',
+                      borderRadius: '0.75rem',
+                      padding: '0.65rem 0.95rem',
+                      display: 'grid',
+                      gap: '0.2rem',
+                      minWidth: '160px',
+                      border: freeDownloadsDepleted
+                        ? '1px solid #fecaca'
+                        : '1px solid rgba(14, 165, 233, 0.35)',
+                      color: freeDownloadsDepleted ? '#b91c1c' : '#0f172a',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
+                      }}
+                    >
+                      Downloads left
+                    </span>
+                    <span style={{ fontWeight: 700 }}>{entitlements.remainingDownloads}</span>
+                  </div>
+                </>
+              ) : (
+                <div
                   style={{
-                    display: 'grid',
-                    gap: '0.35rem',
-                    textAlign: 'left',
-                    padding: '0.85rem 1.1rem',
-                    borderRadius: '0.85rem',
-                    border: isActive ? '1px solid #1d4ed8' : '1px solid #e2e8f0',
-                    background: isActive ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc',
-                    color: isActive ? '#fff' : '#0f172a',
-                    boxShadow: isActive ? '0 16px 32px rgba(37, 99, 235, 0.2)' : 'none',
-                    minWidth: '180px',
+                    background: '#f1f5f9',
+                    borderRadius: '0.75rem',
+                    padding: '0.65rem 0.95rem',
+                    color: '#475569',
+                    fontWeight: 600,
                   }}
                 >
-                  <div style={{ fontWeight: 700 }}>{item.label}</div>
-                  <div style={{ fontSize: '0.85rem', color: isActive ? 'rgba(255,255,255,0.85)' : '#64748b' }}>
-                    {item.description}
-                  </div>
-                </button>
-              );
-            })}
+                  Loading entitlements…
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+          <div style={{ borderTop: '1px solid #e2e8f0', padding: '0 1.75rem 1.25rem' }}>
+            <nav
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                marginTop: '1rem',
+              }}
+            >
+              {DASHBOARD_MENU.map((item) => {
+                const isActive = item.id === activeSection;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      padding: '0.8rem 1rem',
+                      fontWeight: 600,
+                      color: isActive ? '#0f172a' : '#64748b',
+                      borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
+                      borderRadius: '0.6rem 0.6rem 0 0',
+                      cursor: 'pointer',
+                      transition: 'color 0.2s ease, border-color 0.2s ease',
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+            {activeMenu && (
+              <p style={{ margin: '0.85rem 0 0', color: '#475569', fontSize: '0.9rem' }}>{activeMenu.description}</p>
+            )}
+          </div>
+        </header>
         <div style={{ display: 'grid', gap: '1.75rem' }}>
           {activeSection === 'resume' && (
             <>

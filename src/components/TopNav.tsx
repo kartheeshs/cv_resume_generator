@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePathname } from 'next/navigation';
 
 const marketingLinks = [
-  { href: '/#features', label: 'Features' },
+  { href: '/#overview', label: 'Overview' },
   { href: '/#templates', label: 'Templates' },
   { href: '/#pricing', label: 'Pricing' },
 ];
@@ -14,20 +14,20 @@ const LogoMark = () => (
   <span
     aria-hidden
     style={{
-      width: '46px',
-      height: '46px',
-      borderRadius: '1.4rem',
+      width: '40px',
+      height: '40px',
+      borderRadius: '1.25rem',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
       background:
-        'linear-gradient(140deg, rgba(14,165,233,0.95) 0%, rgba(79,70,229,0.9) 55%, rgba(168,85,247,0.9) 100%)',
-      boxShadow: '0 18px 38px -26px rgba(79, 70, 229, 0.85)',
+        'linear-gradient(135deg, rgba(14,165,233,0.95) 0%, rgba(79,70,229,0.9) 55%, rgba(168,85,247,0.9) 100%)',
+      boxShadow: '0 14px 34px -26px rgba(79, 70, 229, 0.85)',
     }}
   >
     <svg
-      width="28"
-      height="28"
+      width="22"
+      height="22"
       viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -70,120 +70,172 @@ export function TopNav() {
   return (
     <header
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '1rem 1.75rem',
-        borderBottom: '1px solid rgba(148, 163, 184, 0.25)',
-        background: 'rgba(255, 255, 255, 0.86)',
         position: 'sticky',
         top: 0,
-        backdropFilter: 'blur(14px)',
-        zIndex: 10,
-        boxShadow: '0 24px 60px -40px rgba(15, 23, 42, 0.3)',
+        zIndex: 40,
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(16px)',
+        borderBottom: '1px solid rgba(148, 163, 184, 0.2)',
       }}
     >
       <div
         style={{
+          maxWidth: '1180px',
+          margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
-          gap: '2.25rem',
+          justifyContent: 'space-between',
+          gap: '1.25rem',
+          padding: '0.85rem clamp(1.25rem, 4vw, 2rem)',
           flexWrap: 'wrap',
         }}
       >
-        <Link
-          href="/"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.9rem',
-            color: '#0f172a',
-            textDecoration: 'none',
-          }}
-        >
-          <LogoMark />
-          <span style={{ display: 'grid', lineHeight: 1.1 }}>
-            <span style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.01em' }}>
-              Career Studio
-            </span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1d4ed8', letterSpacing: '0.12em' }}>
-              GM7
-            </span>
-          </span>
-        </Link>
-        <nav
-          aria-label="Primary"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            flexWrap: 'wrap',
-            fontWeight: 600,
-          }}
-        >
-          {marketingLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              prefetch={false}
-              style={{
-                color: '#1f2937',
-                padding: '0.45rem 0.75rem',
-                borderRadius: '9999px',
-                transition: 'background 0.2s ease, color 0.2s ease',
-              }}
-            >
-              {link.label}
-            </Link>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
           <Link
-            href="/dashboard"
+            href="/"
             style={{
-              color: '#1d4ed8',
-              padding: '0.45rem 0.85rem',
-              borderRadius: '9999px',
-              background: 'rgba(37, 99, 235, 0.12)',
-            }}
-          >
-            Dashboard
-          </Link>
-        </nav>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {user ? (
-          <button
-            type="button"
-            onClick={() => signOut()}
-            style={{
-              border: 'none',
-              background: 'linear-gradient(135deg, #2563eb, #4338ca)',
-              color: '#fff',
-              padding: '0.6rem 1.2rem',
-              borderRadius: '9999px',
-              fontWeight: 600,
-              boxShadow: '0 16px 40px -28px rgba(37, 99, 235, 0.8)',
-              cursor: 'pointer',
-            }}
-          >
-            Sign out
-          </button>
-        ) : (
-          <Link
-            href="/login"
-            style={{
-              border: 'none',
-              background: 'linear-gradient(135deg, #2563eb, #4338ca)',
-              color: '#fff',
-              padding: '0.6rem 1.2rem',
-              borderRadius: '9999px',
-              fontWeight: 600,
-              boxShadow: '0 16px 40px -28px rgba(37, 99, 235, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              color: '#0f172a',
               textDecoration: 'none',
             }}
           >
-            Sign in
+            <LogoMark />
+            <span style={{ display: 'grid', lineHeight: 1.1 }}>
+              <span style={{ fontSize: '1rem', fontWeight: 700, letterSpacing: '0.01em' }}>Career Studio</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1d4ed8', letterSpacing: '0.14em' }}>
+                GM7
+              </span>
+            </span>
           </Link>
-        )}
+          <nav
+            aria-label="Primary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              flexWrap: 'wrap',
+              fontWeight: 600,
+            }}
+          >
+            {marketingLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                prefetch={false}
+                style={{
+                  color: '#1f2937',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.75rem',
+                  textDecoration: 'none',
+                  transition: 'background 0.2s ease, color 0.2s ease',
+                }}
+              >
+                {link.label}
+              </Link>
+            ))}
+            <Link
+              href="/dashboard"
+              style={{
+                color: '#2563eb',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.75rem',
+                background: 'rgba(37, 99, 235, 0.12)',
+                textDecoration: 'none',
+              }}
+            >
+              Dashboard
+            </Link>
+          </nav>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <label
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              background: '#f1f5f9',
+              borderRadius: '0.75rem',
+              padding: '0.35rem 0.75rem',
+              border: '1px solid rgba(148, 163, 184, 0.25)',
+              color: '#475569',
+            }}
+          >
+            <svg
+              aria-hidden
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ flex: '0 0 auto' }}
+            >
+              <path
+                d="M9.5 3.5a6 6 0 104.243 10.243l2.628 2.629a1 1 0 001.415-1.415l-2.629-2.628A6 6 0 009.5 3.5z"
+                stroke="#475569"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <input
+              type="search"
+              placeholder="Search templates"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                padding: '0.15rem 0 0.15rem 0.45rem',
+                fontSize: '0.9rem',
+                color: '#0f172a',
+                minWidth: '160px',
+              }}
+            />
+          </label>
+          {user ? (
+            <button
+              type="button"
+              onClick={() => signOut()}
+              style={{
+                border: '1px solid rgba(37, 99, 235, 0.35)',
+                background: '#2563eb',
+                color: '#fff',
+                padding: '0.55rem 1.1rem',
+                borderRadius: '0.75rem',
+                fontWeight: 600,
+                boxShadow: '0 12px 28px -18px rgba(37, 99, 235, 0.6)',
+                cursor: 'pointer',
+              }}
+            >
+              Sign out
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              style={{
+                border: '1px solid rgba(37, 99, 235, 0.35)',
+                background: '#2563eb',
+                color: '#fff',
+                padding: '0.55rem 1.1rem',
+                borderRadius: '0.75rem',
+                fontWeight: 600,
+                textDecoration: 'none',
+                boxShadow: '0 12px 28px -18px rgba(37, 99, 235, 0.6)',
+              }}
+            >
+              Sign in
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );
