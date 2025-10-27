@@ -1,6 +1,7 @@
 'use client';
 
-import { cloneElement, isValidElement, useEffect, useMemo, useState } from 'react';
+import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 import {
   Timestamp,
   addDoc,
@@ -11,6 +12,7 @@ import {
   increment,
   onSnapshot,
   orderBy,
+  limit,
   query,
   serverTimestamp,
   setDoc,
@@ -39,6 +41,15 @@ import {
 interface DraftFormState extends ResumeDraftContent {
   id?: string;
   templateId: string;
+}
+
+interface DownloadLog {
+  id: string;
+  documentTitle: string;
+  templateId: string;
+  language?: string;
+  plan?: string;
+  createdAt?: Date;
 }
 
 function deepClone<T>(value: T): T {
@@ -240,8 +251,15 @@ export function ResumeDashboard() {
   const [loadingDrafts, setLoadingDrafts] = useState(true);
   const [activeSection, setActiveSection] = useState<DashboardSection>('resume');
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
+  const [downloads, setDownloads] = useState<DownloadLog[]>([]);
+  const [loadingDownloads, setLoadingDownloads] = useState(true);
+  const [startingCheckout, setStartingCheckout] = useState(false);
+  const [syncingSubscription, setSyncingSubscription] = useState(false);
+  const [openingPortal, setOpeningPortal] = useState(false);
 
   const entitlements = profile?.entitlements;
+  const proPriceId = process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID;
+  const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
   useEffect(() => {
     if (!user) return;
@@ -343,6 +361,47 @@ export function ResumeDashboard() {
     return () => unsubscribe();
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setDownloads([]);
+      setLoadingDownloads(false);
+      return;
+    }
+
+    const downloadsQuery = query(
+      collection(db, 'downloads'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(25)
+    );
+
+    const unsubscribe = onSnapshot(
+      downloadsQuery,
+      (snapshot) => {
+        const rows: DownloadLog[] = snapshot.docs.map((document) => {
+          const data = document.data();
+          return {
+            id: document.id,
+            documentTitle: (data.documentTitle as string) ?? 'Untitled resume',
+            templateId: (data.templateId as string) ?? 'unknown-template',
+            language: data.language as string | undefined,
+            plan: data.plan as string | undefined,
+            createdAt: (data.createdAt as Timestamp | undefined)?.toDate?.(),
+          };
+        });
+        setDownloads(rows);
+        setLoadingDownloads(false);
+      },
+      (error) => {
+        console.error('Failed to load downloads', error);
+        setStatus('Unable to load recent downloads.');
+        setLoadingDownloads(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
+
   const selectedTemplateDefinition = useMemo(
     () => getResumeTemplateDefinition(form.templateId) ?? resumeTemplateDefinitions[defaultTemplateId],
     [form.templateId]
@@ -391,6 +450,152 @@ export function ResumeDashboard() {
 
   const isCustomLanguage = !LANGUAGE_OPTIONS.some((option) => option.value === form.language);
   const selectedLanguageValue = isCustomLanguage ? 'custom' : form.language;
+
+  const syncSubscription = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!user) {
+        setStatus('Sign in to manage your subscription.');
+        return;
+      }
+      setSyncingSubscription(true);
+      try {
+        const response = await fetch('/api/subscription/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.uid }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        if (!response.ok) {
+          throw new Error(payload.message ?? 'Failed to sync subscription.');
+        }
+        await refreshProfile();
+        if (!options?.silent) {
+          setStatus('Subscription synced successfully.');
+        }
+      } catch (error) {
+        console.error('Failed to sync subscription', error);
+        setStatus('Unable to sync subscription details. Try again later.');
+      } finally {
+        setSyncingSubscription(false);
+      }
+    },
+    [refreshProfile, user]
+  );
+
+  const startCheckout = useCallback(async () => {
+    if (!user) {
+      setStatus('Sign in to upgrade your subscription.');
+      return;
+    }
+    if (!proPriceId) {
+      setStatus('Stripe price configuration missing.');
+      return;
+    }
+    setStartingCheckout(true);
+    try {
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          priceId: proPriceId,
+          successUrl:
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/dashboard?upgrade=success`
+              : undefined,
+          cancelUrl:
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/dashboard?upgrade=cancelled`
+              : undefined,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        url?: string;
+        message?: string;
+        sessionId?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.message ?? 'Failed to start checkout.');
+      }
+      if (payload.sessionId && stripePublishableKey) {
+        const stripe = await loadStripe(stripePublishableKey);
+        if (stripe) {
+          const result = await stripe.redirectToCheckout({ sessionId: payload.sessionId });
+          if (result.error) {
+            console.error('Stripe redirect error', result.error);
+            setStatus(result.error.message ?? 'Stripe checkout failed to open.');
+          } else {
+            return;
+          }
+        }
+      }
+      if (payload.url) {
+        window.location.href = payload.url;
+        return;
+      }
+      setStatus('Unable to start checkout. Please try again.');
+    } catch (error) {
+      console.error('Failed to start checkout', error);
+      setStatus('Unable to start checkout. Please try again.');
+    } finally {
+      setStartingCheckout(false);
+    }
+  }, [proPriceId, stripePublishableKey, user]);
+
+  const openBillingPortal = useCallback(async () => {
+    if (!user) {
+      setStatus('Sign in to manage your subscription.');
+      return;
+    }
+    setOpeningPortal(true);
+    try {
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          returnUrl:
+            typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : undefined,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { url?: string; message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message ?? 'Failed to open billing portal.');
+      }
+      if (payload.url) {
+        window.location.href = payload.url;
+        return;
+      }
+      setStatus('Unable to open the billing portal.');
+    } catch (error) {
+      console.error('Failed to open billing portal', error);
+      setStatus('Unable to open the billing portal.');
+    } finally {
+      setOpeningPortal(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user) {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const upgradeStatus = params.get('upgrade');
+    if (!upgradeStatus) {
+      return;
+    }
+    if (upgradeStatus === 'success') {
+      syncSubscription({ silent: true }).then(() => {
+        setStatus('Subscription upgraded successfully.');
+      });
+    } else if (upgradeStatus === 'cancelled') {
+      setStatus('Subscription checkout cancelled.');
+    }
+    params.delete('upgrade');
+    const newQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`;
+    window.history.replaceState(null, '', nextUrl);
+  }, [syncSubscription, user]);
 
   const hydrateFromTemplate = (templateId: string) => {
     const definition = getResumeTemplateDefinition(templateId);
@@ -581,7 +786,23 @@ export function ResumeDashboard() {
       document.body.removeChild(anchor);
       window.URL.revokeObjectURL(url);
 
-      if (profile?.entitlements?.plan === 'free') {
+      if (user) {
+        try {
+          await addDoc(collection(db, 'downloads'), {
+            userId: user.uid,
+            draftId: form.id ?? null,
+            templateId: form.templateId,
+            documentTitle: form.documentTitle,
+            language: form.language,
+            plan: entitlements.plan,
+            createdAt: serverTimestamp(),
+          });
+        } catch (error) {
+          console.error('Failed to record download event', error);
+        }
+      }
+
+      if (user && profile?.entitlements?.plan === 'free') {
         await updateDoc(doc(db, 'users', user.uid), {
           'entitlements.remainingDownloads': increment(-1),
         });
@@ -1779,12 +2000,53 @@ export function ResumeDashboard() {
                   Generated PDFs will appear here after you create them from the editor.
                 </p>
               </div>
-              <div style={{ padding: '1rem', borderRadius: '0.85rem', border: '1px dashed #cbd5f5', background: '#f8fafc' }}>
-                <p style={{ margin: 0, color: '#64748b' }}>
-                  No downloads yet. Use the <strong>Generate PDF</strong> button inside the resume editor to create your first
-                  file.
-                </p>
-              </div>
+              {loadingDownloads ? (
+                <p style={{ color: '#64748b' }}>Loading your downloads…</p>
+              ) : downloads.length === 0 ? (
+                <div
+                  style={{
+                    padding: '1rem',
+                    borderRadius: '0.85rem',
+                    border: '1px dashed #cbd5f5',
+                    background: '#f8fafc',
+                  }}
+                >
+                  <p style={{ margin: 0, color: '#64748b' }}>
+                    No downloads yet. Use the <strong>Generate PDF</strong> button inside the resume editor to create your
+                    first file.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '520px' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>Document</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>Template</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>Language</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>Generated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {downloads.map((download) => {
+                        const definition = getResumeTemplateDefinition(download.templateId);
+                        return (
+                          <tr key={download.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>{download.documentTitle}</td>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>{definition?.name ?? download.templateId}</td>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>{formatLanguageLabel(download.language)}</td>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>{(download.plan ?? entitlements?.plan ?? 'free').toUpperCase()}</td>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                              {download.createdAt ? download.createdAt.toLocaleString() : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {entitlements && (
                 <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                   <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#ecfeff', minWidth: '200px' }}>
@@ -1795,6 +2057,23 @@ export function ResumeDashboard() {
                     <strong>Plan</strong>
                     <div style={{ fontSize: '1.2rem' }}>{entitlements.plan.toUpperCase()}</div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => syncSubscription()}
+                    disabled={syncingSubscription}
+                    style={{
+                      alignSelf: 'center',
+                      padding: '0.65rem 1.1rem',
+                      borderRadius: '0.75rem',
+                      border: '1px solid #1d4ed8',
+                      background: syncingSubscription ? '#c7d2fe' : '#1d4ed8',
+                      color: syncingSubscription ? '#1e3a8a' : '#fff',
+                      fontWeight: 600,
+                      cursor: syncingSubscription ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {syncingSubscription ? 'Syncing…' : 'Refresh subscription'}
+                  </button>
                 </div>
               )}
             </section>
@@ -1822,6 +2101,74 @@ export function ResumeDashboard() {
                     <strong>Subscription</strong>
                     <span style={{ color: '#475569' }}>Plan: {entitlements.plan.toUpperCase()}</span>
                     <span style={{ color: '#475569' }}>Remaining downloads: {entitlements.remainingDownloads}</span>
+                    {profile?.subscription && (
+                      <>
+                        <span style={{ color: '#64748b' }}>
+                          Stripe status: {profile.subscription.status ?? 'unknown'}
+                        </span>
+                        {profile.subscription.currentPeriodEnd && (
+                          <span style={{ color: '#64748b' }}>
+                            Current period ends on {profile.subscription.currentPeriodEnd.toLocaleDateString()}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                      {entitlements.plan === 'free' ? (
+                        <button
+                          type="button"
+                          onClick={startCheckout}
+                          disabled={startingCheckout}
+                          style={{
+                            padding: '0.6rem 1.2rem',
+                            borderRadius: '0.75rem',
+                            border: '1px solid #15803d',
+                            background: startingCheckout ? '#bbf7d0' : '#16a34a',
+                            color: startingCheckout ? '#166534' : '#fff',
+                            fontWeight: 600,
+                            cursor: startingCheckout ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {startingCheckout ? 'Connecting…' : 'Upgrade to Pro'}
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={openBillingPortal}
+                            disabled={openingPortal}
+                            style={{
+                              padding: '0.6rem 1.2rem',
+                              borderRadius: '0.75rem',
+                              border: '1px solid #1d4ed8',
+                              background: openingPortal ? '#c7d2fe' : '#1d4ed8',
+                              color: openingPortal ? '#1e3a8a' : '#fff',
+                              fontWeight: 600,
+                              cursor: openingPortal ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {openingPortal ? 'Opening…' : 'Manage billing'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => syncSubscription()}
+                            disabled={syncingSubscription}
+                            style={{
+                              padding: '0.6rem 1.2rem',
+                              borderRadius: '0.75rem',
+                              border: '1px solid #0f172a',
+                              background: '#fff',
+                              color: '#0f172a',
+                              fontWeight: 600,
+                              cursor: syncingSubscription ? 'not-allowed' : 'pointer',
+                              opacity: syncingSubscription ? 0.6 : 1,
+                            }}
+                          >
+                            {syncingSubscription ? 'Syncing…' : 'Refresh status'}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

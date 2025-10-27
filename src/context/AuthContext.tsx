@@ -37,6 +37,13 @@ export interface UserProfile {
     remainingDownloads: number;
     plan: 'free' | 'pro';
   };
+  stripeCustomerId?: string;
+  subscription?: {
+    id: string | null;
+    status: string;
+    currentPeriodEnd: Date | null;
+    lastSyncedAt?: Date | null;
+  };
 }
 
 interface AuthContextValue {
@@ -77,6 +84,22 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
           ? data.entitlements.remainingDownloads
           : 5,
     } as UserProfile['entitlements'];
+    const subscriptionData = data.subscription
+      ? {
+          id: (data.subscription.id as string | null) ?? null,
+          status: (data.subscription.status as string) ?? 'none',
+          currentPeriodEnd:
+            data.subscription.currentPeriodEnd?.toDate?.() ??
+            (data.subscription.currentPeriodEnd instanceof Date
+              ? data.subscription.currentPeriodEnd
+              : null),
+          lastSyncedAt:
+            data.subscription.lastSyncedAt?.toDate?.() ??
+            (data.subscription.lastSyncedAt instanceof Date
+              ? data.subscription.lastSyncedAt
+              : undefined),
+        }
+      : undefined;
     return {
       uid: user.uid,
       email: user.email ?? '',
@@ -84,6 +107,8 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
       role: (data.role as UserRole) ?? 'user',
       createdAt: data.createdAt?.toDate?.(),
       entitlements: entitlementsData,
+      stripeCustomerId: data.stripeCustomerId as string | undefined,
+      subscription: subscriptionData,
     };
   }
 
@@ -97,6 +122,11 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
       plan: 'free',
       remainingDownloads: 5,
     },
+    subscription: {
+      id: null,
+      status: 'none',
+      currentPeriodEnd: null,
+    },
   };
 
   await setDoc(
@@ -107,6 +137,7 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
       displayName: profile.displayName,
       createdAt: serverTimestamp(),
       entitlements: profile.entitlements,
+      subscription: profile.subscription,
     },
     { merge: true }
   );
