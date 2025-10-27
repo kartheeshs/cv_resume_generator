@@ -792,28 +792,23 @@ export function ResumeDashboard() {
           margin: '0 auto',
           display: 'grid',
           gap: '1.5rem',
-          gridTemplateColumns: '260px 1fr',
-          alignItems: 'start',
         }}
       >
-        <aside
+        <div
           style={{
             background: '#fff',
             borderRadius: '1rem',
             border: '1px solid #e2e8f0',
             padding: '1.5rem',
             display: 'grid',
-            gap: '1.25rem',
-            position: 'sticky',
-            top: '6rem',
-            height: 'fit-content',
+            gap: '1rem',
           }}
         >
           <div>
             <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Workspace</h2>
             <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>Switch between tools and resources.</p>
           </div>
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             {DASHBOARD_MENU.map((item) => {
               const isActive = item.id === activeSection;
               return (
@@ -822,13 +817,16 @@ export function ResumeDashboard() {
                   type="button"
                   onClick={() => setActiveSection(item.id)}
                   style={{
+                    display: 'grid',
+                    gap: '0.35rem',
                     textAlign: 'left',
-                    padding: '0.9rem 1rem',
+                    padding: '0.85rem 1.1rem',
                     borderRadius: '0.85rem',
                     border: isActive ? '1px solid #1d4ed8' : '1px solid #e2e8f0',
                     background: isActive ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc',
                     color: isActive ? '#fff' : '#0f172a',
                     boxShadow: isActive ? '0 16px 32px rgba(37, 99, 235, 0.2)' : 'none',
+                    minWidth: '180px',
                   }}
                 >
                   <div style={{ fontWeight: 700 }}>{item.label}</div>
@@ -839,7 +837,7 @@ export function ResumeDashboard() {
               );
             })}
           </div>
-        </aside>
+        </div>
         <div style={{ display: 'grid', gap: '1.75rem' }}>
           {activeSection === 'resume' && (
             <>
