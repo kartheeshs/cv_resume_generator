@@ -13,6 +13,7 @@ import {
   orderBy,
   limit,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -253,10 +254,13 @@ export function ResumeDashboard() {
   const [startingCheckout, setStartingCheckout] = useState(false);
   const [syncingSubscription, setSyncingSubscription] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [redeemingToken, setRedeemingToken] = useState(false);
 
   const entitlements = profile?.entitlements;
-  const freeDownloadsDepleted =
-    entitlements?.plan === 'free' && (entitlements.remainingDownloads ?? 0) <= 0;
+  const downloadsDepleted = Boolean(entitlements) && (entitlements?.remainingDownloads ?? 0) <= 0;
+  const tokensAvailable = entitlements?.tokens ?? 0;
+  const nextRefreshAt = entitlements?.nextRefreshAt ?? null;
+  const nextRefreshDisplay = nextRefreshAt ? nextRefreshAt.toLocaleString() : '—';
   const navMenu = dashboardCopy.sectionLabels as { id: DashboardSection; label: string; description: string }[];
   const activeMenu = navMenu.find((item) => item.id === activeSection);
   useEffect(() => {
@@ -691,6 +695,54 @@ export function ResumeDashboard() {
     }
   };
 
+  const redeemTokenForDownload = async () => {
+    if (!user) {
+      setStatus(statuses.signInRequired);
+      return;
+    }
+    if (!entitlements) {
+      setStatus(statuses.missingEntitlements);
+      return;
+    }
+    if ((entitlements.tokens ?? 0) <= 0) {
+      setStatus(statuses.noTokens);
+      return;
+    }
+
+    setRedeemingToken(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const ref = doc(db, 'users', user.uid);
+        const snapshot = await transaction.get(ref);
+        const data = snapshot.data();
+        const currentTokens =
+          typeof data?.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
+        if (currentTokens <= 0) {
+          throw new Error('NO_TOKENS');
+        }
+        const currentDownloads =
+          typeof data?.entitlements?.remainingDownloads === 'number'
+            ? data.entitlements.remainingDownloads
+            : 0;
+        transaction.update(ref, {
+          'entitlements.tokens': currentTokens - 1,
+          'entitlements.remainingDownloads': currentDownloads + 1,
+        });
+      });
+      await refreshProfile();
+      setStatus(statuses.tokenRedeemed);
+    } catch (error) {
+      if ((error as Error)?.message === 'NO_TOKENS') {
+        setStatus(statuses.noTokens);
+      } else {
+        console.error('Failed to redeem token', error);
+        setStatus(statuses.tokenRedeemFailed);
+      }
+    } finally {
+      setRedeemingToken(false);
+    }
+  };
+
   const generatePdf = async () => {
     if (!form.id) {
       setStatus(statuses.saveBeforePdf);
@@ -700,8 +752,12 @@ export function ResumeDashboard() {
       setStatus(statuses.missingEntitlements);
       return;
     }
-    if (entitlements.remainingDownloads <= 0 && entitlements.plan === 'free') {
-      setStatus(statuses.downloadLimitReached);
+    if (entitlements.remainingDownloads <= 0) {
+      if ((entitlements.tokens ?? 0) > 0) {
+        setStatus(statuses.downloadTokensAvailable);
+      } else {
+        setStatus(statuses.downloadLimitReached);
+      }
       return;
     }
 
@@ -746,10 +802,14 @@ export function ResumeDashboard() {
         }
       }
 
-      if (user && profile?.entitlements?.plan === 'free') {
-        await updateDoc(doc(db, 'users', user.uid), {
-          'entitlements.remainingDownloads': increment(-1),
-        });
+      if (user) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            'entitlements.remainingDownloads': increment(-1),
+          });
+        } catch (error) {
+          console.error('Failed to decrement download allowance', error);
+        }
         await refreshProfile();
       }
       setStatus(statuses.pdfSuccess);
@@ -864,16 +924,16 @@ export function ResumeDashboard() {
                   </div>
                   <div
                     style={{
-                      background: freeDownloadsDepleted ? '#fee2e2' : '#ecfeff',
+                      background: downloadsDepleted ? '#fee2e2' : '#ecfeff',
                       borderRadius: '0.75rem',
                       padding: '0.65rem 0.95rem',
                       display: 'grid',
                       gap: '0.2rem',
                       minWidth: '160px',
-                      border: freeDownloadsDepleted
+                      border: downloadsDepleted
                         ? '1px solid #fecaca'
                         : '1px solid rgba(14, 165, 233, 0.35)',
-                      color: freeDownloadsDepleted ? '#b91c1c' : '#0f172a',
+                      color: downloadsDepleted ? '#b91c1c' : '#0f172a',
                     }}
                   >
                     <span
@@ -969,30 +1029,88 @@ export function ResumeDashboard() {
                       style={{
                         padding: '1rem',
                         borderRadius: '0.75rem',
-                        background: freeDownloadsDepleted ? '#fee2e2' : '#ecfeff',
+                        background: downloadsDepleted ? '#fee2e2' : '#ecfeff',
                         minWidth: '200px',
-                        color: freeDownloadsDepleted ? '#b91c1c' : '#0f172a',
-                        border: freeDownloadsDepleted ? '1px solid #fecaca' : 'none',
+                        color: downloadsDepleted ? '#b91c1c' : '#0f172a',
+                        border: downloadsDepleted ? '1px solid #fecaca' : 'none',
                       }}
                     >
                       <strong>{dashboardCopy.downloadsLeftLabel}</strong>
                       <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
                     </div>
+                    <div
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        background: '#fefce8',
+                        minWidth: '240px',
+                        display: 'grid',
+                        gap: '0.6rem',
+                        border: '1px solid rgba(202, 138, 4, 0.25)',
+                      }}
+                    >
+                      <div>
+                        <strong>{dashboardCopy.tokenBalanceLabel}</strong>
+                        <div style={{ fontSize: '1.2rem' }}>{tokensAvailable}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={redeemTokenForDownload}
+                        disabled={redeemingToken || tokensAvailable <= 0}
+                        style={{
+                          border: 'none',
+                          background: tokensAvailable > 0 ? '#f59e0b' : '#f1f5f9',
+                          color: tokensAvailable > 0 ? '#fff' : '#64748b',
+                          padding: '0.65rem 1rem',
+                          borderRadius: '0.65rem',
+                          fontWeight: 600,
+                          cursor: redeemingToken || tokensAvailable <= 0 ? 'not-allowed' : 'pointer',
+                          boxShadow:
+                            tokensAvailable > 0
+                              ? '0 18px 36px -24px rgba(245, 158, 11, 0.65)'
+                              : 'none',
+                        }}
+                      >
+                        {redeemingToken ? dashboardCopy.tokenRedeemLoading : dashboardCopy.tokenRedeemCta}
+                      </button>
+                      <span style={{ fontSize: '0.85rem', color: '#854d0e' }}>
+                        {tokensAvailable <= 0 ? dashboardCopy.tokenEmpty : dashboardCopy.tokenInfo}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        background: '#f8fafc',
+                        minWidth: '220px',
+                        border: '1px solid rgba(148, 163, 184, 0.3)',
+                      }}
+                    >
+                      <strong>{dashboardCopy.nextRefreshLabel}</strong>
+                      <div style={{ fontSize: '1.1rem' }}>{nextRefreshDisplay}</div>
+                    </div>
                   </div>
                 )}
-                {freeDownloadsDepleted && (
+                {downloadsDepleted && (
                   <div
                     style={{
                       padding: '0.75rem 1rem',
                       borderRadius: '0.75rem',
-                      background: '#fef2f2',
-                      color: '#b91c1c',
+                      background: tokensAvailable > 0 ? '#fef9c3' : '#fef2f2',
+                      color: tokensAvailable > 0 ? '#92400e' : '#b91c1c',
                       fontWeight: 600,
+                      display: 'grid',
+                      gap: '0.35rem',
                     }}
                   >
-                    <span>{dashboardCopy.downloadLimitExceeded}</span>
-                    <br />
-                    <span style={{ fontWeight: 500 }}>{dashboardCopy.downloadResetByAdmin}</span>
+                    <span>
+                      {tokensAvailable > 0
+                        ? statuses.downloadTokensAvailable
+                        : dashboardCopy.downloadLimitExceeded}
+                    </span>
+                    <span style={{ fontWeight: 500 }}>
+                      {tokensAvailable > 0 ? dashboardCopy.tokenInfo : dashboardCopy.downloadResetByAdmin}
+                    </span>
                   </div>
                 )}
                 {status && (
@@ -1066,23 +1184,23 @@ export function ResumeDashboard() {
                     fontWeight: 600,
                   }}
                 >
-                  Save draft
+                  {dashboardCopy.saveDraftAction}
                 </button>
                 <button
                   type="button"
                   onClick={generatePdf}
-                  disabled={freeDownloadsDepleted}
+                  disabled={downloadsDepleted}
                   style={{
                     padding: '0.75rem 1.35rem',
                     borderRadius: '0.85rem',
                     border: '1px solid #0f172a',
-                    background: freeDownloadsDepleted ? '#e2e8f0' : '#0f172a',
-                    color: freeDownloadsDepleted ? '#64748b' : '#fff',
+                    background: downloadsDepleted ? '#e2e8f0' : '#0f172a',
+                    color: downloadsDepleted ? '#64748b' : '#fff',
                     fontWeight: 600,
-                    cursor: freeDownloadsDepleted ? 'not-allowed' : 'pointer',
+                    cursor: downloadsDepleted ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  Download PDF
+                  {dashboardCopy.downloadAction}
                 </button>
               </div>
             </div>
@@ -1186,11 +1304,11 @@ export function ResumeDashboard() {
             </section>
 
             <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
-              <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>Saved drafts</h2>
+              <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>{dashboardCopy.draftsHeading}</h2>
               {loadingDrafts ? (
-                <p style={{ color: '#64748b' }}>Loading your drafts…</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsLoading}</p>
               ) : resumeDrafts.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No drafts available at the moment.</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsEmpty}</p>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
                   {resumeDrafts.map((draft) => (
@@ -1209,7 +1327,7 @@ export function ResumeDashboard() {
                       >
                         <div style={{ fontWeight: 600 }}>{draft.documentTitle}</div>
                         <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                          {getResumeTemplateDefinition(draft.templateId)?.name ?? 'Custom'} ·{' '}
+                          {getResumeTemplateDefinition(draft.templateId)?.name ?? dashboardCopy.customTemplateFallback} ·{' '}
                           {draft.updatedAt.toLocaleDateString()} · {formatLanguageLabel(draft.language)}
                         </div>
                       </button>
@@ -1731,45 +1849,45 @@ export function ResumeDashboard() {
                     onClick={saveDraft}
                     style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: '1px solid #0f172a', background: '#fff', color: '#0f172a', fontWeight: 600 }}
                   >
-                    Save draft
+                    {dashboardCopy.saveDraftAction}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('preview')}
-                    style={{
-                      padding: '0.75rem 1.25rem',
+                <button
+                  type="button"
+                  onClick={() => setViewMode('preview')}
+                  style={{
+                    padding: '0.75rem 1.25rem',
                       borderRadius: '0.75rem',
                       border: '1px solid #1d4ed8',
                       background: '#1d4ed8',
                       color: '#fff',
                       fontWeight: 600,
-                    }}
-                  >
-                    Preview resume
-                  </button>
+                  }}
+                >
+                  {dashboardCopy.previewAction}
+                </button>
                   <button
                     type="button"
                     onClick={generatePdf}
-                    disabled={freeDownloadsDepleted}
+                    disabled={downloadsDepleted}
                     style={{
                       padding: '0.75rem 1.25rem',
                       borderRadius: '0.75rem',
                       border: '1px solid #0f172a',
-                      background: freeDownloadsDepleted ? '#e2e8f0' : '#0f172a',
-                      color: freeDownloadsDepleted ? '#64748b' : '#fff',
+                      background: downloadsDepleted ? '#e2e8f0' : '#0f172a',
+                      color: downloadsDepleted ? '#64748b' : '#fff',
                       fontWeight: 600,
-                      cursor: freeDownloadsDepleted ? 'not-allowed' : 'pointer',
+                      cursor: downloadsDepleted ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    Generate PDF
-                  </button>
+                  {dashboardCopy.downloadAction}
+                </button>
                   <button
                     type="button"
                     onClick={resetForm}
                     style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: 'none', background: '#e2e8f0', color: '#0f172a', fontWeight: 600 }}
                   >
-                    Reset
-                  </button>
+                  {dashboardCopy.resetAction}
+                </button>
                 </div>
               </div>
             </section>
@@ -1872,7 +1990,7 @@ export function ResumeDashboard() {
                             <span style={{ fontSize: '0.9rem', color: '#64748b' }}>{template.description}</span>
                           </div>
                           <span style={{ fontSize: '0.85rem', color: template.accentColor, fontWeight: 600 }}>
-                            Open in editor ↗
+                            {dashboardCopy.openInEditor}
                           </span>
                         </button>
                       );
@@ -1882,11 +2000,11 @@ export function ResumeDashboard() {
               </div>
 
               <div style={{ display: 'grid', gap: '1rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.3rem' }}>Saved CV drafts</h2>
+                <h2 style={{ margin: 0, fontSize: '1.3rem' }}>{dashboardCopy.cvDraftsHeading}</h2>
                 {loadingDrafts ? (
-                  <p style={{ color: '#64748b' }}>Loading your CV drafts…</p>
+                  <p style={{ color: '#64748b' }}>{dashboardCopy.draftsLoading}</p>
                 ) : cvDrafts.length === 0 ? (
-                  <p style={{ color: '#64748b' }}>No drafts available at the moment.</p>
+                  <p style={{ color: '#64748b' }}>{dashboardCopy.draftsEmpty}</p>
                 ) : (
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.85rem' }}>
                     {cvDrafts.map((draft) => {
@@ -1908,7 +2026,7 @@ export function ResumeDashboard() {
                             <div>
                               <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
                               <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                                {definition?.name ?? 'Custom template'} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
+                                {definition?.name ?? dashboardCopy.customTemplateFallback} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
                                 {formatLanguageLabel(draft.language)}
                               </div>
                             </div>
@@ -1929,7 +2047,7 @@ export function ResumeDashboard() {
                                   fontWeight: 600,
                                 }}
                               >
-                                Edit
+                                {dashboardCopy.editAction}
                               </button>
                               <button
                                 type="button"
@@ -1947,7 +2065,7 @@ export function ResumeDashboard() {
                                   fontWeight: 600,
                                 }}
                               >
-                                Preview
+                                {dashboardCopy.previewAction}
                               </button>
                             </div>
                           </div>
@@ -1964,15 +2082,13 @@ export function ResumeDashboard() {
               style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.5rem' }}
             >
               <div>
-                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Saved drafts</h1>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                  Continue where you left off. Pick a draft to jump back into the editor or open a quick preview.
-                </p>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{dashboardCopy.draftsHeading}</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{dashboardCopy.draftsDescription}</p>
               </div>
               {loadingDrafts ? (
-                <p style={{ color: '#64748b' }}>Loading your drafts…</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsLoading}</p>
               ) : drafts.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No drafts available at the moment.</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsEmpty}</p>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '1rem' }}>
                   {drafts.map((draft) => {
@@ -1995,8 +2111,8 @@ export function ResumeDashboard() {
                           <div>
                             <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
                             <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                              {definition?.name ?? 'Custom template'} · {kindLabel} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
-                              {formatLanguageLabel(draft.language)}
+                              {definition?.name ?? dashboardCopy.customTemplateFallback} · {kindLabel} · Updated{' '}
+                              {draft.updatedAt.toLocaleDateString()} · {formatLanguageLabel(draft.language)}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -2016,7 +2132,7 @@ export function ResumeDashboard() {
                                 fontWeight: 600,
                               }}
                             >
-                              Edit
+                              {dashboardCopy.editAction}
                             </button>
                             <button
                               type="button"
@@ -2034,7 +2150,7 @@ export function ResumeDashboard() {
                                 fontWeight: 600,
                               }}
                             >
-                              Preview
+                              {dashboardCopy.previewAction}
                             </button>
                           </div>
                         </div>
@@ -2050,13 +2166,11 @@ export function ResumeDashboard() {
               style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}
             >
               <div>
-                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Downloads</h1>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                  Generated PDFs will appear here after you create them from the editor.
-                </p>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{dashboardCopy.downloadsHeading}</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{dashboardCopy.downloadsCopy}</p>
               </div>
               {loadingDownloads ? (
-                <p style={{ color: '#64748b' }}>Loading your downloads…</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.downloadsLoading}</p>
               ) : downloads.length === 0 ? (
                 <div
                   style={{
@@ -2066,21 +2180,18 @@ export function ResumeDashboard() {
                     background: '#f8fafc',
                   }}
                 >
-                  <p style={{ margin: 0, color: '#64748b' }}>
-                    No downloads yet. Use the <strong>Generate PDF</strong> button inside the resume editor to create your
-                    first file.
-                  </p>
+                  <p style={{ margin: 0, color: '#64748b' }}>{dashboardCopy.downloadsEmpty}</p>
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '520px' }}>
                     <thead>
                       <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Document</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Template</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Language</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Generated</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.document}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.template}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.language}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.plan}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.created}</th>
                       </tr>
                     </thead>
                     <tbody>

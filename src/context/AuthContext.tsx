@@ -21,6 +21,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import {
+  Timestamp,
   doc,
   getDoc,
   serverTimestamp,
@@ -32,6 +33,10 @@ const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '')
   .split(',')
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
+
+const FREE_DOWNLOAD_ALLOWANCE = 1;
+const PRO_WEEKLY_ALLOWANCE = 10;
+const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
 const isAdminEmail = (email: string | null | undefined) => {
   if (!email) return false;
@@ -49,6 +54,8 @@ export interface UserProfile {
   entitlements?: {
     remainingDownloads: number;
     plan: 'free' | 'pro';
+    nextRefreshAt?: Date | null;
+    tokens?: number;
   };
   stripeCustomerId?: string;
   subscription?: {
@@ -98,33 +105,71 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
   if (snap.exists()) {
     const data = snap.data();
     const resolvedPlan = (data.entitlements?.plan as 'free' | 'pro') ?? 'free';
-    let normalizedDownloads =
+    const rawRemainingDownloads =
       typeof data.entitlements?.remainingDownloads === 'number'
         ? data.entitlements.remainingDownloads
         : resolvedPlan === 'pro'
-        ? 50
-        : 1;
-    if (normalizedDownloads < 0) {
-      normalizedDownloads = 0;
+        ? PRO_WEEKLY_ALLOWANCE
+        : FREE_DOWNLOAD_ALLOWANCE;
+    let normalizedDownloads = Math.max(0, rawRemainingDownloads);
+    const tokens =
+      typeof data.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
+    const rawNextRefresh = data.entitlements?.nextRefreshAt;
+    let nextRefreshAt: Date | null = null;
+    if (rawNextRefresh instanceof Date) {
+      nextRefreshAt = rawNextRefresh;
+    } else if (rawNextRefresh?.toDate) {
+      nextRefreshAt = rawNextRefresh.toDate();
     }
-    if (resolvedPlan === 'free' && normalizedDownloads > 1) {
-      normalizedDownloads = 1;
+
+    const now = new Date();
+    let shouldPersistEntitlements = false;
+
+    if (resolvedPlan === 'free') {
+      if (normalizedDownloads > FREE_DOWNLOAD_ALLOWANCE) {
+        normalizedDownloads = FREE_DOWNLOAD_ALLOWANCE;
+        shouldPersistEntitlements = true;
+      }
+      if (nextRefreshAt !== null) {
+        nextRefreshAt = null;
+        shouldPersistEntitlements = true;
+      }
+    } else {
+      const refreshDue = !nextRefreshAt || nextRefreshAt.getTime() <= now.getTime();
+      if (refreshDue) {
+        normalizedDownloads = Math.max(normalizedDownloads, PRO_WEEKLY_ALLOWANCE);
+        nextRefreshAt = new Date(now.getTime() + WEEK_IN_MS);
+        shouldPersistEntitlements = true;
+      }
+    }
+
+    if (typeof data.entitlements?.tokens !== 'number') {
+      shouldPersistEntitlements = true;
+    }
+
+    if (shouldPersistEntitlements) {
+      const entitlementsPayload: Record<string, unknown> = {
+        ...(data.entitlements ?? {}),
+        plan: resolvedPlan,
+        remainingDownloads: normalizedDownloads,
+        tokens,
+        nextRefreshAt: nextRefreshAt ? Timestamp.fromDate(nextRefreshAt) : null,
+      };
       await setDoc(
         ref,
         {
-          entitlements: {
-            ...(data.entitlements ?? {}),
-            plan: resolvedPlan,
-            remainingDownloads: normalizedDownloads,
-          },
+          entitlements: entitlementsPayload,
         },
         { merge: true }
       );
     }
-    const entitlementsData = {
+
+    const entitlementsData: UserProfile['entitlements'] = {
       plan: resolvedPlan,
       remainingDownloads: normalizedDownloads,
-    } as UserProfile['entitlements'];
+      tokens,
+      nextRefreshAt,
+    };
     const subscriptionData = data.subscription
       ? {
           id: (data.subscription.id as string | null) ?? null,
@@ -168,7 +213,9 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
     createdAt: new Date(),
     entitlements: {
       plan: 'free',
-      remainingDownloads: 1,
+      remainingDownloads: FREE_DOWNLOAD_ALLOWANCE,
+      tokens: 0,
+      nextRefreshAt: null,
     },
     subscription: {
       id: null,

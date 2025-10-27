@@ -174,6 +174,9 @@ type TranslationDefinition = {
       role: string;
       plan: string;
       remainingDownloads: string;
+      tokens: string;
+      nextRefresh: string;
+      subscriptionStatus: string;
       createdAt: string;
       actions: string;
     };
@@ -181,12 +184,15 @@ type TranslationDefinition = {
       setUser: string;
       setAdmin: string;
       addDownloads: string;
+      addTokens: string;
       resetDownloads: string;
       resetDownloadsLoading: string;
       setPlanToFree: string;
       setPlanToPro: string;
       refreshStatus: string;
       refreshStatusLoading: string;
+      deleteUser: string;
+      deleteUserLoading: string;
     };
     statuses: {
       roleUpdated: string;
@@ -201,6 +207,23 @@ type TranslationDefinition = {
       subscriptionFailed: string;
       templatesFailed: string;
       downloadsFailed: string;
+      templateDuplicated: string;
+      tokensGranted: string;
+      tokensGrantFailed: string;
+      userDeleted: string;
+      userDeleteFailed: string;
+      userDeleteEmailFailed: string;
+    };
+    confirmations: {
+      deleteUser: string;
+    };
+    subscriptionsColumns: {
+      email: string;
+      customer: string;
+      plan: string;
+      status: string;
+      periodEnd: string;
+      actions: string;
     };
   };
   resumeDashboard: {
@@ -264,6 +287,14 @@ type TranslationDefinition = {
       editorReset: string;
     };
   };
+  privacy: {
+    title: string;
+    updated: string;
+    intro: string;
+    sections: { title: string; body: string[] }[];
+    disclaimer: string;
+    contact: string;
+  };
 };
 
 type LocaleSettings = {
@@ -289,6 +320,7 @@ const translations: Record<Locale, TranslationDefinition> = {
         { href: '/#overview', label: 'Overview' },
         { href: '/#templates', label: 'Templates' },
         { href: '/#pricing', label: 'Pricing' },
+        { href: '/privacy', label: 'Privacy' },
       ],
       dashboard: 'Dashboard',
       searchPlaceholder: 'Search templates',
@@ -529,7 +561,7 @@ const translations: Record<Locale, TranslationDefinition> = {
         downloads30: 'Generated in the last 30 days',
       },
       downloadsHeading: 'Download history',
-      downloadsEmpty: 'No downloads recorded yet.',
+      downloadsEmpty: 'No downloads recorded yet. Use the Download PDF button inside the editor to create your first file.',
       downloadsLoading: 'Loading downloads…',
       downloadsColumns: {
         document: 'Document',
@@ -553,13 +585,16 @@ const translations: Record<Locale, TranslationDefinition> = {
       duplicateTemplate: 'Duplicate template',
       duplicateTemplateLoading: 'Duplicating…',
       usersHeading: 'Member directory',
-      usersCopy: 'Promote admins, adjust allowances, or reset download limits.',
+      usersCopy: 'Promote admins, adjust allowances, grant tokens, or reset download limits.',
       usersEmpty: 'No users found.',
       usersColumns: {
         email: 'Email',
         role: 'Role',
         plan: 'Plan',
         remainingDownloads: 'Downloads left',
+        tokens: 'Tokens',
+        nextRefresh: 'Next refresh',
+        subscriptionStatus: 'Subscription status',
         createdAt: 'Created',
         actions: 'Actions',
       },
@@ -567,12 +602,15 @@ const translations: Record<Locale, TranslationDefinition> = {
         setUser: 'Set user',
         setAdmin: 'Set admin',
         addDownloads: '+10 downloads',
+        addTokens: '+5 tokens',
         resetDownloads: 'Reset allowance',
         resetDownloadsLoading: 'Resetting…',
         setPlanToFree: 'Set free plan',
         setPlanToPro: 'Set pro plan',
         refreshStatus: 'Refresh status',
         refreshStatusLoading: 'Syncing…',
+        deleteUser: 'Delete user',
+        deleteUserLoading: 'Removing…',
       },
       statuses: {
         roleUpdated: 'Role updated to {{role}} successfully.',
@@ -587,6 +625,23 @@ const translations: Record<Locale, TranslationDefinition> = {
         subscriptionFailed: 'Unable to refresh the subscription status right now.',
         templatesFailed: 'Unable to load templates.',
         downloadsFailed: 'Unable to load downloads from Firestore.',
+        templateDuplicated: 'Template duplicated.',
+        tokensGranted: 'Granted {{count}} tokens.',
+        tokensGrantFailed: 'Unable to grant tokens right now.',
+        userDeleted: 'User removed and notified via email.',
+        userDeleteFailed: 'Failed to delete the user.',
+        userDeleteEmailFailed: 'User deleted, but notification email could not be sent.',
+      },
+      confirmations: {
+        deleteUser: 'Delete {{email}} from the workspace? A notification email will be sent.',
+      },
+      subscriptionsColumns: {
+        email: 'Email',
+        customer: 'Customer reference',
+        plan: 'Plan',
+        status: 'Status',
+        periodEnd: 'Period end',
+        actions: 'Actions',
       },
     },
     resumeDashboard: {
@@ -598,6 +653,12 @@ const translations: Record<Locale, TranslationDefinition> = {
       signedInFallback: 'Signed in member',
       planLabel: 'Plan',
       downloadsLeftLabel: 'Downloads left',
+      tokenBalanceLabel: 'Token balance',
+      nextRefreshLabel: 'Next refresh',
+      tokenInfo: 'Redeem tokens to add extra downloads before the weekly refresh.',
+      tokenRedeemCta: 'Redeem token (+1 download)',
+      tokenRedeemLoading: 'Redeeming…',
+      tokenEmpty: 'No tokens available right now.',
       loadingEntitlements: 'Loading entitlements…',
       resumeHeading: 'Resume workspace',
       resumeCopy: 'Craft resumes with production-ready templates, edit every section, and export polished PDFs.',
@@ -612,11 +673,14 @@ const translations: Record<Locale, TranslationDefinition> = {
       templateHeading: 'Template library',
       templateCopy: 'Switch templates at any time—your content stays synced to each locale.',
       draftsHeading: 'Draft progress',
+      draftsDescription: 'Continue where you left off. Pick a draft to jump back into the editor or open a quick preview.',
       draftsEmpty: 'No drafts available at the moment.',
       draftsLoading: 'Loading drafts…',
+      cvDraftsHeading: 'CV drafts',
       downloadsHeading: 'Download status',
       downloadsEmpty: 'No downloads recorded yet.',
-      downloadsCopy: 'Free plans can export one PDF. Upgrade for additional downloads or ask an admin to reset the limit.',
+      downloadsCopy:
+        'Free plans can export one PDF. Growth refreshes 10 downloads weekly—redeem tokens for extras or ask an admin to reset the limit.',
       settingsHeading: 'Account & limits',
       settingsCopy: 'Adjust workspace language, review entitlements, and collaborate securely.',
       downloadLimitNotice: 'Downloads remaining: {{count}}',
@@ -626,6 +690,12 @@ const translations: Record<Locale, TranslationDefinition> = {
       draftStatusEmpty: 'No draft selected.',
       draftStatusLoaded: 'Editing draft: {{title}}',
       templateAction: 'Use this template',
+      openInEditor: 'Open in editor ↗',
+      saveDraftAction: 'Save draft',
+      editAction: 'Edit',
+      previewAction: 'Preview',
+      resetAction: 'Reset',
+      customTemplateFallback: 'Custom template',
       downloadAction: 'Download PDF',
       statuses: {
         loadTemplatesError: 'Unable to load templates from Firestore.',
@@ -652,11 +722,51 @@ const translations: Record<Locale, TranslationDefinition> = {
         saveBeforePdf: 'Save your draft before generating a PDF.',
         missingEntitlements: 'Missing entitlements data. Please reload the page.',
         downloadLimitReached:
-          'You have reached the free download limit. Subscribe to continue or ask an admin to reset your allowance.',
+          'You have reached the weekly download limit. Subscribe, redeem a token, or ask an admin to reset your allowance.',
+        downloadTokensAvailable:
+          'You are out of downloads for this week. Redeem a token to keep exporting before the refresh.',
+        tokenRedeemed: 'Token redeemed. One additional download added.',
+        tokenRedeemFailed: 'Unable to redeem a token right now.',
+        noTokens: 'No tokens available to redeem.',
         pdfSuccess: 'PDF generated successfully.',
         pdfFailed: 'Failed to generate PDF.',
         editorReset: 'Editor reset to template defaults.',
       },
+    },
+    privacy: {
+      title: 'Privacy policy',
+      updated: 'Last updated June 2024',
+      intro:
+        'This policy explains how Career Studio GM7 handles personal information inside the resume generator experience.',
+      sections: [
+        {
+          title: 'Information we collect',
+          body: [
+            'We store the email address you use to authenticate, profile details you add to resume drafts, and audit logs for template downloads. No payment details are captured inside this demo environment.',
+          ],
+        },
+        {
+          title: 'How we use your data',
+          body: [
+            'Collected information is used to provide authenticated access, sync resume drafts across devices, and show admins aggregated usage metrics. Data is not sold or shared with advertisers.',
+          ],
+        },
+        {
+          title: 'Third-party services',
+          body: [
+            'Authentication and storage rely on Firebase, and PDF rendering uses @react-pdf/renderer. These providers process data according to their own policies.',
+          ],
+        },
+        {
+          title: 'Data retention & deletion',
+          body: [
+            'Drafts and activity logs remain until you delete them or request removal through the admin console. Backups or caches may persist for a limited period as part of infrastructure safeguards.',
+          ],
+        },
+      ],
+      disclaimer:
+        'Career Studio GM7 is provided as-is. The creator and owner accept no responsibility or liability for any damages, losses, or disputes that arise from using this application.',
+      contact: 'Questions? Email support@careerstudiogm7.com.',
     },
   },
   ja: {
@@ -665,6 +775,7 @@ const translations: Record<Locale, TranslationDefinition> = {
         { href: '/#overview', label: '概要' },
         { href: '/#templates', label: 'テンプレート' },
         { href: '/#pricing', label: '料金' },
+        { href: '/privacy', label: 'プライバシー' },
       ],
       dashboard: 'ダッシュボード',
       searchPlaceholder: 'テンプレートを検索',
@@ -918,13 +1029,16 @@ const translations: Record<Locale, TranslationDefinition> = {
       duplicateTemplate: 'テンプレートを複製',
       duplicateTemplateLoading: '複製中…',
       usersHeading: 'メンバーディレクトリ',
-      usersCopy: '管理者への昇格、権限調整、ダウンロード上限のリセットを行います。',
+      usersCopy: '管理者への昇格、権限調整、トークン付与、ダウンロード上限のリセットを行います。',
       usersEmpty: 'ユーザーが見つかりません。',
       usersColumns: {
         email: 'メールアドレス',
         role: 'ロール',
         plan: 'プラン',
         remainingDownloads: '残りダウンロード',
+        tokens: 'トークン',
+        nextRefresh: '次回リフレッシュ',
+        subscriptionStatus: 'サブスクリプション状態',
         createdAt: '作成日時',
         actions: '操作',
       },
@@ -932,12 +1046,15 @@ const translations: Record<Locale, TranslationDefinition> = {
         setUser: 'ユーザーに変更',
         setAdmin: '管理者に変更',
         addDownloads: '+10ダウンロード',
+        addTokens: '+5トークン',
         resetDownloads: '上限をリセット',
         resetDownloadsLoading: 'リセット中…',
         setPlanToFree: 'フリープランに設定',
         setPlanToPro: 'プロプランに設定',
         refreshStatus: 'ステータスを更新',
         refreshStatusLoading: '同期中…',
+        deleteUser: 'ユーザーを削除',
+        deleteUserLoading: '削除中…',
       },
       statuses: {
         roleUpdated: 'ロールを{{role}}に更新しました。',
@@ -952,6 +1069,23 @@ const translations: Record<Locale, TranslationDefinition> = {
         subscriptionFailed: '現在サブスクリプション状態を更新できません。',
         templatesFailed: 'テンプレートを読み込めませんでした。',
         downloadsFailed: 'Firestoreからダウンロードを読み込めませんでした。',
+        templateDuplicated: 'テンプレートを複製しました。',
+        tokensGranted: '{{count}}件のトークンを付与しました。',
+        tokensGrantFailed: '現在トークンを付与できません。',
+        userDeleted: 'ユーザーを削除し、メール通知を送信しました。',
+        userDeleteFailed: 'ユーザーを削除できませんでした。',
+        userDeleteEmailFailed: 'ユーザーは削除しましたが、通知メールを送信できませんでした。',
+      },
+      confirmations: {
+        deleteUser: '{{email}} をワークスペースから削除しますか？通知メールが送信されます。',
+      },
+      subscriptionsColumns: {
+        email: 'メールアドレス',
+        customer: '顧客ID',
+        plan: 'プラン',
+        status: 'ステータス',
+        periodEnd: '期間終了',
+        actions: '操作',
       },
     },
     resumeDashboard: {
@@ -962,6 +1096,12 @@ const translations: Record<Locale, TranslationDefinition> = {
       signedInFallback: 'サインイン中のメンバー',
       planLabel: 'プラン',
       downloadsLeftLabel: '残りダウンロード',
+      tokenBalanceLabel: 'トークン残高',
+      nextRefreshLabel: '次回リフレッシュ',
+      tokenInfo: '週次リセットを待たずにダウンロード枠を追加するにはトークンを使用してください。',
+      tokenRedeemCta: 'トークンを使用して1件追加',
+      tokenRedeemLoading: '処理中…',
+      tokenEmpty: '利用可能なトークンはありません。',
       loadingEntitlements: '権限を読み込み中…',
       resumeHeading: 'レジュメワークスペース',
       resumeCopy: '実運用レベルのテンプレートで各セクションを編集し、仕上げたPDFをすぐに共有できます。',
@@ -976,20 +1116,30 @@ const translations: Record<Locale, TranslationDefinition> = {
       templateHeading: 'テンプレートライブラリ',
       templateCopy: 'いつでもテンプレートを切り替え可能。コンテンツは各ロケールに同期されます。',
       draftsHeading: '下書きの進捗',
+      draftsDescription: '中断した場所から再開できます。エディターで編集するかプレビューを開いて内容を確認しましょう。',
       draftsEmpty: '現在利用できる下書きはありません。',
       draftsLoading: '下書きを読み込み中…',
+      cvDraftsHeading: 'CVの下書き',
       downloadsHeading: 'ダウンロード状況',
-      downloadsEmpty: 'ダウンロード履歴はまだありません。',
-      downloadsCopy: '無料プランはPDFを1回のみ出力可能です。追加出力はサブスク登録または管理者のリセットが必要です。',
+      downloadsEmpty: 'ダウンロード履歴はまだありません。エディター内の「PDFをダウンロード」ボタンからファイルを生成してください。',
+      downloadsCopy:
+        '無料プランはPDFを1回のみ出力できます。Growthプランは毎週10件までリセットされ、追加はトークンで拡張できます。',
       settingsHeading: 'アカウントと上限',
       settingsCopy: 'ワークスペース言語を調整し、権限と共同編集を管理します。',
       downloadLimitNotice: '残りダウンロード数: {{count}}',
-      downloadLimitExceeded: '無料プランのダウンロード上限に達しました。継続するには購読が必要です。',
+      downloadLimitExceeded:
+        '今週のダウンロード上限に達しました。購読するか、トークンを使うか、管理者にリセットを依頼してください。',
       downloadResetByAdmin: '管理者がコントロールセンターから上限をリセットできます。',
       draftStatusLoading: '下書きを読み込み中…',
       draftStatusEmpty: '下書きが選択されていません。',
       draftStatusLoaded: '編集中の下書き: {{title}}',
       templateAction: 'このテンプレートを使う',
+      openInEditor: 'エディターで開く ↗',
+      saveDraftAction: '下書きを保存',
+      editAction: '編集',
+      previewAction: 'プレビュー',
+      resetAction: 'リセット',
+      customTemplateFallback: 'カスタムテンプレート',
       downloadAction: 'PDFをダウンロード',
       statuses: {
         loadTemplatesError: 'テンプレートを読み込めませんでした。',
@@ -1015,11 +1165,50 @@ const translations: Record<Locale, TranslationDefinition> = {
         draftSaveFailed: '下書きを保存できませんでした。もう一度お試しください。',
         saveBeforePdf: 'PDFを生成する前に下書きを保存してください。',
         missingEntitlements: '権限データが不足しています。ページを再読み込みしてください。',
-        downloadLimitReached: '無料プランのダウンロード上限に達しました。購読するか管理者にリセットを依頼してください。',
+        downloadLimitReached:
+          '今週のダウンロード枠を使い切りました。サブスク登録、トークンの利用、または管理者へのリセット依頼をご検討ください。',
+        downloadTokensAvailable: '今週分のダウンロードは完了しています。リフレッシュ前にトークンを利用すると続行できます。',
+        tokenRedeemed: 'トークンを使用してダウンロード枠を1件追加しました。',
+        tokenRedeemFailed: 'トークンを使用できませんでした。時間をおいて再度お試しください。',
+        noTokens: '利用可能なトークンがありません。',
         pdfSuccess: 'PDFを生成しました。',
         pdfFailed: 'PDFを生成できませんでした。',
         editorReset: 'テンプレートの初期状態にリセットしました。',
       },
+    },
+    privacy: {
+      title: 'プライバシーポリシー',
+      updated: '最終更新: 2024年6月',
+      intro: 'Career Studio GM7がレジュメ生成体験の中でどのように個人情報を扱うかを説明します。',
+      sections: [
+        {
+          title: '収集する情報',
+          body: [
+            '認証に利用するメールアドレス、下書きに入力したプロフィール情報、テンプレートのダウンロード履歴を保存します。デモ環境では決済情報は取得しません。',
+          ],
+        },
+        {
+          title: '利用目的',
+          body: [
+            '収集した情報はサインインの提供、デバイス間での下書き同期、管理者向けの利用状況集計に用います。広告目的で第三者に提供することはありません。',
+          ],
+        },
+        {
+          title: '外部サービス',
+          body: [
+            '認証とデータ保管はFirebaseを利用し、PDF生成は@react-pdf/rendererを使用します。各サービスはそれぞれのポリシーに基づいてデータを処理します。',
+          ],
+        },
+        {
+          title: '保管期間と削除',
+          body: [
+            '下書きやアクティビティログは、ユーザーが削除するか管理コンソールから削除を依頼するまで保持されます。インフラ保護のためバックアップやキャッシュが一定期間残る場合があります。',
+          ],
+        },
+      ],
+      disclaimer:
+        'Career Studio GM7は現状のまま提供されます。本アプリの利用に起因する損害や紛争について、作者および所有者は一切の責任を負いません。',
+      contact: 'プライバシーに関するお問い合わせ: support@careerstudiogm7.com',
     },
   },
 };
