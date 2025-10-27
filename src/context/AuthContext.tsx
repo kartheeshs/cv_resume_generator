@@ -11,11 +11,14 @@ import {
 import {
   GoogleAuthProvider,
   User,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
   sendSignInLinkToEmail,
   signInWithEmailLink,
+  signInWithEmailAndPassword,
   signInWithPopup,
-  onAuthStateChanged,
   signOut as firebaseSignOut,
+  updateProfile,
 } from 'firebase/auth';
 import {
   doc,
@@ -63,8 +66,14 @@ interface AuthContextValue {
   sendEmailLink: (email: string) => Promise<void>;
   completeEmailLinkSignIn: (email: string) => Promise<User | null>;
   signInWithGoogle: () => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<UserProfile | null>;
+  signUpWithPassword: (
+    email: string,
+    password: string,
+    displayName?: string | null
+  ) => Promise<UserProfile | null>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<UserProfile | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -88,12 +97,33 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
 
   if (snap.exists()) {
     const data = snap.data();
+    const resolvedPlan = (data.entitlements?.plan as 'free' | 'pro') ?? 'free';
+    let normalizedDownloads =
+      typeof data.entitlements?.remainingDownloads === 'number'
+        ? data.entitlements.remainingDownloads
+        : resolvedPlan === 'pro'
+        ? 50
+        : 1;
+    if (normalizedDownloads < 0) {
+      normalizedDownloads = 0;
+    }
+    if (resolvedPlan === 'free' && normalizedDownloads > 1) {
+      normalizedDownloads = 1;
+      await setDoc(
+        ref,
+        {
+          entitlements: {
+            ...(data.entitlements ?? {}),
+            plan: resolvedPlan,
+            remainingDownloads: normalizedDownloads,
+          },
+        },
+        { merge: true }
+      );
+    }
     const entitlementsData = {
-      plan: (data.entitlements?.plan as 'free' | 'pro') ?? 'free',
-      remainingDownloads:
-        typeof data.entitlements?.remainingDownloads === 'number'
-          ? data.entitlements.remainingDownloads
-          : 5,
+      plan: resolvedPlan,
+      remainingDownloads: normalizedDownloads,
     } as UserProfile['entitlements'];
     const subscriptionData = data.subscription
       ? {
@@ -138,7 +168,7 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
     createdAt: new Date(),
     entitlements: {
       plan: 'free',
-      remainingDownloads: 5,
+      remainingDownloads: 1,
     },
     subscription: {
       id: null,
@@ -171,13 +201,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = useCallback(async (currentUser: User | null) => {
     if (!currentUser) {
       setProfile(null);
-      return;
+      return null;
     }
     try {
       const data = await ensureUserProfile(currentUser);
       setProfile(data);
+      return data;
     } catch (error) {
       console.error('Failed to load profile', error);
+      return null;
     }
   }, []);
 
@@ -236,6 +268,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loadProfile(result.user);
   }, [loadProfile]);
 
+  const signInWithPassword = useCallback(
+    async (email: string, password: string) => {
+      const normalizedEmail = email.trim();
+      const result = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      return loadProfile(result.user);
+    },
+    [loadProfile]
+  );
+
+  const signUpWithPassword = useCallback(
+    async (email: string, password: string, displayName?: string | null) => {
+      const normalizedEmail = email.trim();
+      const result = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      if (displayName) {
+        try {
+          await updateProfile(result.user, { displayName });
+        } catch (error) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('Failed to set display name', error);
+          }
+        }
+      }
+      return loadProfile(result.user);
+    },
+    [loadProfile]
+  );
+
   const signOut = useCallback(async () => {
     await firebaseSignOut(auth);
     setUser(null);
@@ -250,10 +309,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sendEmailLink,
       completeEmailLinkSignIn,
       signInWithGoogle,
+      signInWithPassword,
+      signUpWithPassword,
       signOut,
       refreshProfile: async () => loadProfile(auth.currentUser),
     }),
-    [user, profile, loading, sendEmailLink, completeEmailLinkSignIn, signInWithGoogle, signOut, loadProfile]
+    [
+      user,
+      profile,
+      loading,
+      sendEmailLink,
+      completeEmailLinkSignIn,
+      signInWithGoogle,
+      signInWithPassword,
+      signUpWithPassword,
+      signOut,
+      loadProfile,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

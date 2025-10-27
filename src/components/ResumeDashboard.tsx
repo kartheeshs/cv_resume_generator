@@ -257,6 +257,8 @@ export function ResumeDashboard() {
   const [openingPortal, setOpeningPortal] = useState(false);
 
   const entitlements = profile?.entitlements;
+  const freeDownloadsDepleted =
+    entitlements?.plan === 'free' && (entitlements.remainingDownloads ?? 0) <= 0;
   useEffect(() => {
     if (!user) return;
 
@@ -312,7 +314,12 @@ export function ResumeDashboard() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setDrafts([]);
+      setLoadingDrafts(false);
+      return;
+    }
+    setLoadingDrafts(true);
 
     const draftsQuery = query(
       collection(db, 'drafts'),
@@ -320,39 +327,47 @@ export function ResumeDashboard() {
       orderBy('updatedAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(draftsQuery, (snapshot) => {
-      const parsed: ResumeDraft[] = snapshot.docs
-        .map((document) => {
-          const data = document.data();
-          const templateId = (data.templateId as string) ?? '';
-          const definition = getResumeTemplateDefinition(templateId);
-          if (!definition) {
-            return undefined;
-          }
+    const unsubscribe = onSnapshot(
+      draftsQuery,
+      (snapshot) => {
+        const parsed: ResumeDraft[] = snapshot.docs
+          .map((document) => {
+            const data = document.data();
+            const templateId = (data.templateId as string) ?? '';
+            const definition = getResumeTemplateDefinition(templateId);
+            if (!definition) {
+              return undefined;
+            }
 
-          return {
-            id: document.id,
-            ownerId: (data.ownerId as string) ?? user.uid,
-            templateId,
-            documentTitle: (data.documentTitle as string) ?? definition.defaultContent.documentTitle,
-            language: (data.language as string | undefined) ?? definition.defaultContent.language ?? 'en',
-            profile: (data.profile as ResumeDraftContent['profile']) ?? definition.defaultContent.profile,
-            summary: (data.summary as string | undefined) ?? definition.defaultContent.summary,
-            objective: (data.objective as string | undefined) ?? definition.defaultContent.objective,
-            workExperiences: parseExperiences(data.workExperiences, definition.defaultContent.workExperiences),
-            education: parseEducation(data.education, definition.defaultContent.education),
-            skillGroups: parseSkillGroups(data.skillGroups, definition.defaultContent.skillGroups),
-            listSections: parseListSections(data.listSections, definition.defaultContent.listSections),
-            certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
-            createdAt: (data.createdAt as Timestamp)?.toDate?.(),
-          } satisfies ResumeDraft;
-        })
-        .filter(Boolean) as ResumeDraft[];
+            return {
+              id: document.id,
+              ownerId: (data.ownerId as string) ?? user.uid,
+              templateId,
+              documentTitle: (data.documentTitle as string) ?? definition.defaultContent.documentTitle,
+              language: (data.language as string | undefined) ?? definition.defaultContent.language ?? 'en',
+              profile: (data.profile as ResumeDraftContent['profile']) ?? definition.defaultContent.profile,
+              summary: (data.summary as string | undefined) ?? definition.defaultContent.summary,
+              objective: (data.objective as string | undefined) ?? definition.defaultContent.objective,
+              workExperiences: parseExperiences(data.workExperiences, definition.defaultContent.workExperiences),
+              education: parseEducation(data.education, definition.defaultContent.education),
+              skillGroups: parseSkillGroups(data.skillGroups, definition.defaultContent.skillGroups),
+              listSections: parseListSections(data.listSections, definition.defaultContent.listSections),
+              certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
+              updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
+              createdAt: (data.createdAt as Timestamp)?.toDate?.(),
+            } satisfies ResumeDraft;
+          })
+          .filter(Boolean) as ResumeDraft[];
 
-      setDrafts(parsed);
-      setLoadingDrafts(false);
-    });
+        setDrafts(parsed);
+        setLoadingDrafts(false);
+      },
+      (error) => {
+        console.error('Failed to load drafts', error);
+        setStatus('Unable to load drafts right now.');
+        setLoadingDrafts(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user]);
@@ -686,7 +701,7 @@ export function ResumeDashboard() {
       return;
     }
     if (entitlements.remainingDownloads <= 0 && entitlements.plan === 'free') {
-      setStatus('Upgrade to a paid plan to unlock more PDF downloads.');
+      setStatus('You have reached the free download limit. Subscribe to continue or ask an admin to reset your allowance.');
       return;
     }
 
@@ -863,10 +878,32 @@ export function ResumeDashboard() {
                       <strong>Plan</strong>
                       <div style={{ fontSize: '1.2rem' }}>{entitlements.plan.toUpperCase()}</div>
                     </div>
-                    <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#ecfeff', minWidth: '200px' }}>
+                    <div
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        background: freeDownloadsDepleted ? '#fee2e2' : '#ecfeff',
+                        minWidth: '200px',
+                        color: freeDownloadsDepleted ? '#b91c1c' : '#0f172a',
+                        border: freeDownloadsDepleted ? '1px solid #fecaca' : 'none',
+                      }}
+                    >
                       <strong>Downloads left</strong>
                       <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
                     </div>
+                  </div>
+                )}
+                {freeDownloadsDepleted && (
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.75rem',
+                      background: '#fef2f2',
+                      color: '#b91c1c',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Upgrade to GM7 Pro or contact an administrator to reset your free download.
                   </div>
                 )}
                 {status && (
@@ -945,13 +982,15 @@ export function ResumeDashboard() {
                 <button
                   type="button"
                   onClick={generatePdf}
+                  disabled={freeDownloadsDepleted}
                   style={{
                     padding: '0.75rem 1.35rem',
                     borderRadius: '0.85rem',
                     border: '1px solid #0f172a',
-                    background: '#0f172a',
-                    color: '#fff',
+                    background: freeDownloadsDepleted ? '#e2e8f0' : '#0f172a',
+                    color: freeDownloadsDepleted ? '#64748b' : '#fff',
                     fontWeight: 600,
+                    cursor: freeDownloadsDepleted ? 'not-allowed' : 'pointer',
                   }}
                 >
                   Download PDF
@@ -1062,7 +1101,7 @@ export function ResumeDashboard() {
               {loadingDrafts ? (
                 <p style={{ color: '#64748b' }}>Loading your drafts…</p>
               ) : resumeDrafts.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No drafts yet. Save a resume to see it here.</p>
+                <p style={{ color: '#64748b' }}>No drafts available at the moment.</p>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
                   {resumeDrafts.map((draft) => (
@@ -1622,13 +1661,15 @@ export function ResumeDashboard() {
                   <button
                     type="button"
                     onClick={generatePdf}
+                    disabled={freeDownloadsDepleted}
                     style={{
                       padding: '0.75rem 1.25rem',
                       borderRadius: '0.75rem',
                       border: '1px solid #0f172a',
-                      background: '#0f172a',
-                      color: '#fff',
+                      background: freeDownloadsDepleted ? '#e2e8f0' : '#0f172a',
+                      color: freeDownloadsDepleted ? '#64748b' : '#fff',
                       fontWeight: 600,
+                      cursor: freeDownloadsDepleted ? 'not-allowed' : 'pointer',
                     }}
                   >
                     Generate PDF
@@ -1756,9 +1797,7 @@ export function ResumeDashboard() {
                 {loadingDrafts ? (
                   <p style={{ color: '#64748b' }}>Loading your CV drafts…</p>
                 ) : cvDrafts.length === 0 ? (
-                  <p style={{ color: '#64748b' }}>
-                    No CV drafts yet. Load a template above and save your progress to revisit it later.
-                  </p>
+                  <p style={{ color: '#64748b' }}>No drafts available at the moment.</p>
                 ) : (
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.85rem' }}>
                     {cvDrafts.map((draft) => {
@@ -1844,7 +1883,7 @@ export function ResumeDashboard() {
               {loadingDrafts ? (
                 <p style={{ color: '#64748b' }}>Loading your drafts…</p>
               ) : drafts.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No drafts yet. Save a resume or CV from the editor to see it listed here.</p>
+                <p style={{ color: '#64748b' }}>No drafts available at the moment.</p>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '1rem' }}>
                   {drafts.map((draft) => {

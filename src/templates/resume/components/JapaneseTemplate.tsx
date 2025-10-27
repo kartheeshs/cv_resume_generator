@@ -57,6 +57,10 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
   const [applicationYear, applicationMonth, applicationDay] = parseYearMonthDay(
     getItem(content, 'japanese-application-date', 0, `${defaultYear}-${defaultMonth}-${defaultDay}`)
   );
+  const normalizedApplicationYear = applicationYear || defaultYear;
+  const normalizedApplicationMonth = applicationMonth || defaultMonth;
+  const normalizedApplicationDay = applicationDay || defaultDay;
+  const applicationDateLabel = `${normalizedApplicationYear}年${normalizedApplicationMonth}月${normalizedApplicationDay}日現在`;
   const furigana = getItem(content, 'japanese-furigana', 0, 'やまだ たろう');
   const birth = getItem(content, 'japanese-personal', 0, '1995年4月12日生（満28歳）');
   const gender = getItem(content, 'japanese-personal', 1, '男');
@@ -213,29 +217,7 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end' }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'auto 56px auto 36px auto 36px auto',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '11px',
-              }}
-            >
-              <span>（</span>
-              <div style={{ border: tableBorder, width: '56px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {applicationYear}
-              </div>
-              <span>年</span>
-              <div style={{ border: tableBorder, width: '36px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {applicationMonth}
-              </div>
-              <span>月</span>
-              <div style={{ border: tableBorder, width: '36px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {applicationDay}
-              </div>
-              <span>日現在 ）</span>
-            </div>
+            <div style={{ fontSize: '12px', letterSpacing: '0.08em', color: '#1f2937' }}>（ {applicationDateLabel} ）</div>
             <div
               style={{
                 border: tableBorder,

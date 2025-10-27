@@ -74,6 +74,7 @@ export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [syncingUserId, setSyncingUserId] = useState<string | null>(null);
   const [adjustingUserId, setAdjustingUserId] = useState<string | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [loadingDownloads, setLoadingDownloads] = useState(true);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
 
@@ -200,6 +201,22 @@ export function AdminDashboard() {
       setStatus('Unable to adjust download allowance.');
     } finally {
       setAdjustingUserId(null);
+    }
+  };
+
+  const resetDownloads = async (user: UserRow) => {
+    try {
+      setResettingUserId(user.id);
+      const allowance = user.plan === 'pro' ? 50 : 1;
+      await updateDoc(doc(db, 'users', user.id), {
+        'entitlements.remainingDownloads': allowance,
+      });
+      setStatus(`Download allowance reset to ${allowance}.`);
+    } catch (error) {
+      console.error(error);
+      setStatus('Failed to reset download allowance.');
+    } finally {
+      setResettingUserId(null);
     }
   };
 
@@ -424,18 +441,34 @@ export function AdminDashboard() {
                           >
                             Set admin
                           </button>
+                          {userRow.plan === 'pro' && (
+                            <button
+                              onClick={() => adjustDownloads(userRow.id, 10)}
+                              disabled={adjustingUserId === userRow.id}
+                              style={{
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '0.5rem',
+                                border: '1px solid #16a34a',
+                                background: adjustingUserId === userRow.id ? '#bbf7d0' : '#22c55e',
+                                color: adjustingUserId === userRow.id ? '#166534' : '#fff',
+                              }}
+                            >
+                              {adjustingUserId === userRow.id ? 'Updating…' : '+10 downloads'}
+                            </button>
+                          )}
                           <button
-                            onClick={() => adjustDownloads(userRow.id, 10)}
-                            disabled={adjustingUserId === userRow.id}
+                            onClick={() => resetDownloads(userRow)}
+                            disabled={resettingUserId === userRow.id}
                             style={{
                               padding: '0.35rem 0.75rem',
                               borderRadius: '0.5rem',
-                              border: '1px solid #16a34a',
-                              background: adjustingUserId === userRow.id ? '#bbf7d0' : '#22c55e',
-                              color: adjustingUserId === userRow.id ? '#166534' : '#fff',
+                              border: '1px solid #0ea5e9',
+                              background: resettingUserId === userRow.id ? '#bae6fd' : '#38bdf8',
+                              color: resettingUserId === userRow.id ? '#0c4a6e' : '#0f172a',
+                              fontWeight: 600,
                             }}
                           >
-                            {adjustingUserId === userRow.id ? 'Updating…' : '+10 downloads'}
+                            {resettingUserId === userRow.id ? 'Resetting…' : 'Reset allowance'}
                           </button>
                           <button
                             onClick={() => setPlan(userRow.id, userRow.plan === 'pro' ? 'free' : 'pro')}

@@ -140,19 +140,18 @@ export function TopNav() {
           >
             Dashboard
           </Link>
-          {profile?.role === 'admin' && (
-            <Link
-              href="/admin"
-              style={{
-                color: '#0f172a',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '9999px',
-                background: 'rgba(14, 165, 233, 0.12)',
-              }}
-            >
-              Admin
-            </Link>
-          )}
+          <Link
+            href={profile?.role === 'admin' ? '/admin' : '/admin/login'}
+            style={{
+              color: profile?.role === 'admin' ? '#0f172a' : '#1f2937',
+              padding: '0.45rem 0.85rem',
+              borderRadius: '9999px',
+              background: profile?.role === 'admin' ? 'rgba(14, 165, 233, 0.12)' : 'transparent',
+              border: profile?.role === 'admin' ? 'none' : '1px solid rgba(148, 163, 184, 0.35)',
+            }}
+          >
+            Admin
+          </Link>
         </nav>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

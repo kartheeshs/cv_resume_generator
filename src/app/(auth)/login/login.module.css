@@ -80,6 +80,41 @@
   gap: 1.1rem;
 }
 
+.methodSwitch {
+  display: inline-flex;
+  padding: 0.35rem;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  gap: 0.35rem;
+  margin-top: -0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.methodButton {
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.methodButton:hover {
+  color: #1e293b;
+}
+
+.methodActive {
+  border: none;
+  background: linear-gradient(135deg, #4338ca, #2563eb);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.55rem 1.1rem;
+  border-radius: 9999px;
+  box-shadow: 0 12px 28px -18px rgba(37, 99, 235, 0.7);
+  cursor: default;
+}
+
 .inputGroup {
   display: grid;
   gap: 0.45rem;

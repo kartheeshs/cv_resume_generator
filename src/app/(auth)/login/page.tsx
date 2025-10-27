@@ -6,17 +6,25 @@ import { useRouter } from 'next/navigation';
 import styles from './login.module.css';
 
 type AuthMode = 'signin' | 'signup';
+type AuthMethod = 'magic-link' | 'password';
 
 export default function LoginPage() {
-  const { sendEmailLink, signInWithGoogle, user } = useAuth();
+  const { sendEmailLink, signInWithGoogle, signInWithPassword, signUpWithPassword, user } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState<AuthMode>('signin');
+  const [method, setMethod] = useState<AuthMethod>('magic-link');
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (method === 'password') {
+      await handlePasswordSubmit(event);
+      return;
+    }
     setSending(true);
     try {
       await sendEmailLink(email);
@@ -31,6 +39,42 @@ export default function LoginPage() {
     } catch (error) {
       console.error(error);
       setStatus('Unable to send sign-in email. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (method !== 'password') return;
+    if (!email || !password) {
+      setStatus('Please provide both an email address and password.');
+      return;
+    }
+    if (mode === 'signup' && password.length < 8) {
+      setStatus('Choose a password with at least 8 characters.');
+      return;
+    }
+    if (mode === 'signup' && password !== confirmPassword) {
+      setStatus('Passwords do not match.');
+      return;
+    }
+    setSending(true);
+    setStatus(null);
+    try {
+      if (mode === 'signin') {
+        await signInWithPassword(email, password);
+      } else {
+        await signUpWithPassword(email, password);
+      }
+      router.push('/dashboard');
+    } catch (error) {
+      console.error(error);
+      setStatus(
+        mode === 'signin'
+          ? 'Unable to sign in with that password. Please check your details and try again.'
+          : 'Unable to create the account. Please verify your details and try again.'
+      );
     } finally {
       setSending(false);
     }
@@ -78,10 +122,37 @@ export default function LoginPage() {
             <h1>{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h1>
             <p>
               {mode === 'signin'
-                ? 'Sign in with a passwordless email link or continue instantly with Google.'
-                : 'We will send you a secure email link to finish creating your account. You can also continue with Google.'}
+                ? 'Choose a secure password login or receive a one-time magic link. You can also continue instantly with Google.'
+                : 'Create your account with a password or request a secure email link. Google sign-in is also available.'}
             </p>
           </header>
+
+          <div className={styles.methodSwitch}>
+            <button
+              type="button"
+              className={method === 'magic-link' ? styles.methodActive : styles.methodButton}
+              onClick={() => {
+                setMethod('magic-link');
+                setStatus(null);
+                setPassword('');
+                setConfirmPassword('');
+              }}
+            >
+              Email magic link
+            </button>
+            <button
+              type="button"
+              className={method === 'password' ? styles.methodActive : styles.methodButton}
+              onClick={() => {
+                setMethod('password');
+                setStatus(null);
+                setPassword('');
+                setConfirmPassword('');
+              }}
+            >
+              Use password
+            </button>
+          </div>
 
           <form onSubmit={handleSubmit} className={styles.form}>
             <div className={styles.inputGroup}>
@@ -96,9 +167,49 @@ export default function LoginPage() {
                 className={styles.input}
               />
             </div>
+            {method === 'password' && (
+              <>
+                <div className={styles.inputGroup}>
+                  <label htmlFor="password">Password</label>
+                  <input
+                    id="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Enter a secure password"
+                    className={styles.input}
+                    minLength={8}
+                  />
+                </div>
+                {mode === 'signup' && (
+                  <div className={styles.inputGroup}>
+                    <label htmlFor="confirmPassword">Confirm password</label>
+                    <input
+                      id="confirmPassword"
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      placeholder="Re-enter your password"
+                      className={styles.input}
+                      minLength={8}
+                    />
+                  </div>
+                )}
+              </>
+            )}
             <button type="submit" disabled={sending} className={styles.primaryButton}>
               {sending
-                ? 'Sending…'
+                ? method === 'password'
+                  ? mode === 'signin'
+                    ? 'Signing in…'
+                    : 'Creating account…'
+                  : 'Sending…'
+                : method === 'password'
+                ? mode === 'signin'
+                  ? 'Sign in with password'
+                  : 'Create account with password'
                 : mode === 'signin'
                 ? 'Email me a sign-in link'
                 : 'Email me a sign-up link'}
@@ -117,6 +228,8 @@ export default function LoginPage() {
               const nextMode: AuthMode = mode === 'signin' ? 'signup' : 'signin';
               setMode(nextMode);
               setStatus(null);
+              setPassword('');
+              setConfirmPassword('');
             }}
             className={styles.ghostButton}
           >
