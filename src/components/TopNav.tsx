@@ -14,6 +14,7 @@ const languageOptions = [
 export function TopNav() {
   const pathname = usePathname();
   const onAdminRoute = pathname?.startsWith('/admin');
+  const inWorkspace = pathname?.startsWith('/dashboard');
   const { user, signOut } = useAuth();
   const { copy, language, setLanguage } = useLocalization();
   const { nav } = copy;
@@ -58,45 +59,47 @@ export function TopNav() {
           >
             <CareerStudioLogo />
           </Link>
-          <nav
-            aria-label="Primary"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              flexWrap: 'wrap',
-              fontWeight: 600,
-            }}
-          >
-            {nav.marketingLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                prefetch={false}
-                style={{
-                  color: '#1f2937',
-                  padding: '0.45rem 0.85rem',
-                  borderRadius: '0.75rem',
-                  textDecoration: 'none',
-                  transition: 'background 0.2s ease, color 0.2s ease',
-                }}
-              >
-                {link.label}
-              </Link>
-            ))}
-            <Link
-              href="/dashboard"
+          {!inWorkspace && (
+            <nav
+              aria-label="Primary"
               style={{
-                color: '#2563eb',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '0.75rem',
-                background: 'rgba(37, 99, 235, 0.12)',
-                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                flexWrap: 'wrap',
+                fontWeight: 600,
               }}
             >
-              {nav.dashboard}
-            </Link>
-          </nav>
+              {nav.marketingLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  prefetch={false}
+                  style={{
+                    color: '#1f2937',
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: '0.75rem',
+                    textDecoration: 'none',
+                    transition: 'background 0.2s ease, color 0.2s ease',
+                  }}
+                >
+                  {link.label}
+                </Link>
+              ))}
+              <Link
+                href="/dashboard"
+                style={{
+                  color: '#2563eb',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(37, 99, 235, 0.12)',
+                  textDecoration: 'none',
+                }}
+              >
+                {nav.dashboard}
+              </Link>
+            </nav>
+          )}
         </div>
 
         <div
@@ -107,6 +110,48 @@ export function TopNav() {
             flexWrap: 'wrap',
           }}
         >
+          {inWorkspace && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                marginRight: '0.25rem',
+              }}
+            >
+              <Link
+                href="/"
+                style={{
+                  border: '1px solid rgba(148, 163, 184, 0.35)',
+                  background: '#fff',
+                  color: '#0f172a',
+                  padding: '0.45rem 0.9rem',
+                  borderRadius: '0.75rem',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                {nav.visitWebsite}
+              </Link>
+              <Link
+                href="/#pricing"
+                prefetch={false}
+                style={{
+                  border: '1px solid rgba(37, 99, 235, 0.4)',
+                  background: '#2563eb',
+                  color: '#fff',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.75rem',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  boxShadow: '0 12px 28px -18px rgba(37, 99, 235, 0.65)',
+                }}
+              >
+                {nav.subscribe}
+              </Link>
+            </div>
+          )}
           <label
             style={{
               position: 'relative',

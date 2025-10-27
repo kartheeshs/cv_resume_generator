@@ -70,6 +70,11 @@
   gap: 1.2rem;
 }
 
+.cardCompact {
+  padding: clamp(1.1rem, 2.6vw, 1.6rem);
+  gap: 1rem;
+}
+
 .cardHeader {
   display: grid;
   gap: 0.6rem;
@@ -90,6 +95,10 @@
 .form {
   display: grid;
   gap: 0.85rem;
+}
+
+.formCompact {
+  gap: 0.7rem;
 }
 
 .methodSwitch {

@@ -100,9 +100,12 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
     (a.startDate ?? '').localeCompare(b.startDate ?? '')
   );
 
-  const borderColor = '#d1d5db';
-  const subtleFill = '#f8fafc';
+  const borderColor = 'rgba(15, 23, 42, 0.6)';
+  const subtleFill = '#ffffff';
+  const headingFill = '#f8fafc';
   const tableBorder = `1px solid ${borderColor}`;
+  const outerBorder = '1.5px solid rgba(15, 23, 42, 0.75)';
+  const rowDivider = '1px solid rgba(15, 23, 42, 0.35)';
 
   const renderHistoryRow = (
     year: string,
@@ -115,7 +118,7 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
       style={{
         display: 'grid',
         gridTemplateColumns: '56px 56px 1fr',
-        borderBottom: tableBorder,
+        borderBottom: rowDivider,
         minHeight: '40px',
         fontSize: '12px',
       }}
@@ -135,21 +138,22 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
   );
 
   const pageStyle = {
-    width: '540px',
-    minHeight: '760px',
-    border: tableBorder,
-    padding: '20px',
+    width: '508px',
+    minHeight: '728px',
+    border: outerBorder,
+    padding: '18px 22px',
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: '12px',
+    gap: '10px',
     background: '#fff',
+    boxShadow: '0 18px 40px -28px rgba(15, 23, 42, 0.35)',
   };
 
   const sectionHeadingStyle = {
-    borderBottom: tableBorder,
+    borderBottom: rowDivider,
     padding: '8px 12px',
     fontWeight: 700,
-    background: subtleFill,
+    background: headingFill,
     fontSize: '12px',
     letterSpacing: '0.08em',
   };
@@ -162,8 +166,8 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
         display: 'flex',
         gap: '16px',
         justifyContent: 'center',
-        padding: '16px',
-        background: '#f3f4f6',
+        padding: '20px',
+        background: '#f8fafc',
       }}
     >
       <div style={pageStyle}>
@@ -189,7 +193,7 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
                 style={{
                   borderRight: tableBorder,
                   padding: '8px',
-                  background: subtleFill,
+                  background: headingFill,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -204,7 +208,7 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
                   borderTop: tableBorder,
                   borderRight: tableBorder,
                   padding: '8px',
-                  background: subtleFill,
+                  background: headingFill,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -244,13 +248,13 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
             fontSize: '12px',
           }}
         >
-          <div style={{ borderRight: tableBorder, background: subtleFill, padding: '12px' }}>生年月日</div>
+          <div style={{ borderRight: tableBorder, background: headingFill, padding: '12px' }}>生年月日</div>
           <div style={{ padding: '12px 16px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <span>{birth}</span>
             <span>性別 {gender}</span>
             <span>{commute}</span>
           </div>
-          <div style={{ borderTop: tableBorder, borderRight: tableBorder, background: subtleFill, padding: '12px' }}>現住所</div>
+          <div style={{ borderTop: tableBorder, borderRight: tableBorder, background: headingFill, padding: '12px' }}>現住所</div>
           <div style={{ borderTop: tableBorder, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span>{addressLine}</span>
             <span>{nearestStation}</span>
@@ -267,7 +271,7 @@ export function JapaneseTemplate({ content }: TemplatePreviewProps) {
           })}
           <div
             style={{
-              borderBottom: tableBorder,
+              borderBottom: rowDivider,
               padding: '6px 12px',
               fontSize: '12px',
               color: '#6b7280',

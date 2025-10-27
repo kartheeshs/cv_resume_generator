@@ -26,6 +26,8 @@ type TranslationDefinition = {
   nav: {
     marketingLinks: TranslationLink[];
     dashboard: string;
+    visitWebsite: string;
+    subscribe: string;
     searchPlaceholder: string;
     signIn: string;
     signOut: string;
@@ -234,6 +236,13 @@ type TranslationDefinition = {
     signedInFallback: string;
     planLabel: string;
     downloadsLeftLabel: string;
+    tokenBalanceLabel: string;
+    nextRefreshLabel: string;
+    subscribeCta: string;
+    tokenInfo: string;
+    tokenRedeemCta: string;
+    tokenRedeemLoading: string;
+    tokenEmpty: string;
     loadingEntitlements: string;
     resumeHeading: string;
     resumeCopy: string;
@@ -242,8 +251,10 @@ type TranslationDefinition = {
     templateHeading: string;
     templateCopy: string;
     draftsHeading: string;
+    draftsDescription: string;
     draftsEmpty: string;
     draftsLoading: string;
+    cvDraftsHeading: string;
     downloadsHeading: string;
     downloadsEmpty: string;
     downloadsCopy: string;
@@ -256,6 +267,12 @@ type TranslationDefinition = {
     draftStatusEmpty: string;
     draftStatusLoaded: string;
     templateAction: string;
+    openInEditor: string;
+    saveDraftAction: string;
+    editAction: string;
+    previewAction: string;
+    resetAction: string;
+    customTemplateFallback: string;
     downloadAction: string;
     statuses: {
       loadTemplatesError: string;
@@ -282,6 +299,10 @@ type TranslationDefinition = {
       saveBeforePdf: string;
       missingEntitlements: string;
       downloadLimitReached: string;
+      downloadTokensAvailable: string;
+      tokenRedeemed: string;
+      tokenRedeemFailed: string;
+      noTokens: string;
       pdfSuccess: string;
       pdfFailed: string;
       editorReset: string;
@@ -323,6 +344,8 @@ const translations: Record<Locale, TranslationDefinition> = {
         { href: '/privacy', label: 'Privacy' },
       ],
       dashboard: 'Dashboard',
+      visitWebsite: 'Visit website',
+      subscribe: 'Subscribe',
       searchPlaceholder: 'Search templates',
       signIn: 'Sign in',
       signOut: 'Sign out',
@@ -655,6 +678,7 @@ const translations: Record<Locale, TranslationDefinition> = {
       downloadsLeftLabel: 'Downloads left',
       tokenBalanceLabel: 'Token balance',
       nextRefreshLabel: 'Next refresh',
+      subscribeCta: 'Subscribe to Growth',
       tokenInfo: 'Redeem tokens to add extra downloads before the weekly refresh.',
       tokenRedeemCta: 'Redeem token (+1 download)',
       tokenRedeemLoading: 'Redeeming…',
@@ -778,6 +802,8 @@ const translations: Record<Locale, TranslationDefinition> = {
         { href: '/privacy', label: 'プライバシー' },
       ],
       dashboard: 'ダッシュボード',
+      visitWebsite: 'ウェブサイトを見る',
+      subscribe: 'プランに加入',
       searchPlaceholder: 'テンプレートを検索',
       signIn: 'ログイン',
       signOut: 'ログアウト',
@@ -1098,6 +1124,7 @@ const translations: Record<Locale, TranslationDefinition> = {
       downloadsLeftLabel: '残りダウンロード',
       tokenBalanceLabel: 'トークン残高',
       nextRefreshLabel: '次回リフレッシュ',
+      subscribeCta: '有料プランに加入する',
       tokenInfo: '週次リセットを待たずにダウンロード枠を追加するにはトークンを使用してください。',
       tokenRedeemCta: 'トークンを使用して1件追加',
       tokenRedeemLoading: '処理中…',

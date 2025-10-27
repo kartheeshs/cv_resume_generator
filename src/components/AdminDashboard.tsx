@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Timestamp,
@@ -70,6 +71,7 @@ export function AdminDashboard() {
   const { profile, signOut } = useAuth();
   const { copy } = useLocalization();
   const adminCopy = copy.adminDashboard;
+  const navCopy = copy.nav;
   const tabs = adminCopy.tabs as { id: AdminTab; label: string; description: string }[];
   const [users, setUsers] = useState<UserRow[]>([]);
   const [downloads, setDownloads] = useState<DownloadRow[]>([]);
@@ -212,6 +214,18 @@ export function AdminDashboard() {
   const downloadsTab = tabs.find((tab) => tab.id === 'downloads');
   const subscriptionsTab = tabs.find((tab) => tab.id === 'subscriptions');
   const templatesTab = tabs.find((tab) => tab.id === 'templates');
+  const userGridTemplate =
+    'minmax(220px, 2.4fr) minmax(110px, 1fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(120px, 0.9fr) minmax(170px, 1.3fr) minmax(150px, 1.1fr) minmax(150px, 1.1fr) minmax(220px, 1.6fr)';
+  const actionButtonBase = {
+    padding: '0.4rem 0.75rem',
+    borderRadius: '0.65rem',
+    fontWeight: 600,
+    fontSize: '0.85rem',
+    border: '1px solid rgba(15, 23, 42, 0.12)',
+    background: '#f8fafc',
+    color: '#0f172a',
+    cursor: 'pointer',
+  } as const;
 
   const updateRole = async (userId: string, nextRole: 'admin' | 'user') => {
     try {
@@ -471,6 +485,20 @@ export function AdminDashboard() {
                   }}
                 />
               </label>
+              <Link
+                href="/"
+                style={{
+                  border: '1px solid rgba(148, 163, 184, 0.35)',
+                  background: '#fff',
+                  color: '#0f172a',
+                  padding: '0.5rem 0.95rem',
+                  borderRadius: '0.85rem',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                {navCopy.visitWebsite}
+              </Link>
               <button
                 type="button"
                 style={{
@@ -763,69 +791,177 @@ export function AdminDashboard() {
             <p style={{ color: '#64748b' }}>{adminCopy.usersEmpty}</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '960px' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.email}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.role}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.plan}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.remainingDownloads}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.tokens}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.nextRefresh}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.subscriptionStatus}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.createdAt}</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.actions}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((userRow) => (
-                    <tr key={userRow.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>{userRow.email}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.role}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{(userRow.plan ?? 'free').toUpperCase()}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.remainingDownloads ?? 0}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.tokens ?? 0}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{formatDateTime(userRow.nextRefreshAt ?? undefined)}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.subscriptionStatus ?? '—'}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{formatDate(userRow.createdAt)}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  minWidth: '1100px',
+                  display: 'grid',
+                  gap: '0.75rem',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: userGridTemplate,
+                    gap: '0.5rem',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.85rem',
+                    background: '#e2e8f0',
+                    color: '#0f172a',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  <span>{adminCopy.usersColumns.email}</span>
+                  <span>{adminCopy.usersColumns.role}</span>
+                  <span>{adminCopy.usersColumns.plan}</span>
+                  <span>{adminCopy.usersColumns.remainingDownloads}</span>
+                  <span>{adminCopy.usersColumns.tokens}</span>
+                  <span>{adminCopy.usersColumns.nextRefresh}</span>
+                  <span>{adminCopy.usersColumns.subscriptionStatus}</span>
+                  <span>{adminCopy.usersColumns.createdAt}</span>
+                  <span style={{ textAlign: 'right' }}>{adminCopy.usersColumns.actions}</span>
+                </div>
+                {users.map((userRow) => {
+                  const planLabel = (userRow.plan ?? 'free').toUpperCase();
+                  const downloadsRemaining = userRow.remainingDownloads ?? 0;
+                  const tokens = userRow.tokens ?? 0;
+                  const isPro = userRow.plan === 'pro';
+                  const nextRefreshLabel = formatDateTime(userRow.nextRefreshAt ?? undefined);
+                  const createdAtLabel = formatDate(userRow.createdAt);
+                  return (
+                    <div
+                      key={userRow.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: userGridTemplate,
+                        gap: '0.5rem',
+                        alignItems: 'center',
+                        padding: '1rem 1.1rem',
+                        borderRadius: '1rem',
+                        border: '1px solid #e2e8f0',
+                        background: '#fff',
+                        boxShadow: '0 20px 48px -36px rgba(15, 23, 42, 0.28)',
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: '#0f172a', wordBreak: 'break-word' }}>{userRow.email}</span>
+                      <span style={{ color: '#475569' }}>{userRow.role}</span>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '999px',
+                          background: isPro ? '#1d4ed8' : '#f1f5f9',
+                          color: isPro ? '#fff' : '#1f2937',
+                          fontWeight: 600,
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        {planLabel}
+                      </span>
+                      <span
+                        style={{
+                          color: downloadsRemaining <= 1 ? '#b91c1c' : '#0f172a',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {downloadsRemaining}
+                      </span>
+                      <span
+                        style={{
+                          color: tokens > 0 ? '#0f172a' : '#94a3b8',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {tokens}
+                      </span>
+                      <span style={{ color: '#475569' }}>{nextRefreshLabel}</span>
+                      <span style={{ color: '#475569' }}>{userRow.subscriptionStatus ?? '—'}</span>
+                      <span style={{ color: '#475569' }}>{createdAtLabel}</span>
+                      <div style={{ display: 'grid', gap: '0.45rem', justifyItems: 'flex-end' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.4rem',
+                            justifyContent: 'flex-end',
+                          }}
+                        >
                           <button
+                            type="button"
                             onClick={() => updateRole(userRow.id, 'user')}
                             style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #94a3b8',
-                              background: '#fff',
-                              fontWeight: 600,
+                              ...actionButtonBase,
+                              border: '1px solid rgba(148, 163, 184, 0.6)',
                             }}
                           >
                             {adminCopy.buttons.setUser}
                           </button>
                           <button
+                            type="button"
                             onClick={() => updateRole(userRow.id, 'admin')}
                             style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #1d4ed8',
+                              ...actionButtonBase,
                               background: '#1d4ed8',
+                              border: '1px solid #1d4ed8',
                               color: '#fff',
-                              fontWeight: 600,
                             }}
                           >
                             {adminCopy.buttons.setAdmin}
                           </button>
-                          {userRow.plan === 'pro' && (
+                          <button
+                            type="button"
+                            onClick={() => setPlan(userRow.id, userRow.plan === 'pro' ? 'free' : 'pro')}
+                            style={{
+                              ...actionButtonBase,
+                              border: '1px solid rgba(37, 99, 235, 0.35)',
+                              background: userRow.plan === 'pro' ? '#eef2ff' : '#2563eb',
+                              color: userRow.plan === 'pro' ? '#1e3a8a' : '#fff',
+                            }}
+                          >
+                            {userRow.plan === 'pro'
+                              ? adminCopy.buttons.setPlanToFree
+                              : adminCopy.buttons.setPlanToPro}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => syncSubscription(userRow.id)}
+                            disabled={syncingUserId === userRow.id}
+                            style={{
+                              ...actionButtonBase,
+                              border: '1px solid #2563eb',
+                              background: syncingUserId === userRow.id ? '#e0f2fe' : '#2563eb',
+                              color: syncingUserId === userRow.id ? '#1e40af' : '#fff',
+                              opacity: syncingUserId === userRow.id ? 0.85 : 1,
+                            }}
+                          >
+                            {syncingUserId === userRow.id
+                              ? adminCopy.buttons.refreshStatusLoading
+                              : adminCopy.buttons.refreshStatus}
+                          </button>
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.4rem',
+                            justifyContent: 'flex-end',
+                          }}
+                        >
+                          {isPro && (
                             <button
+                              type="button"
                               onClick={() => adjustDownloads(userRow.id, 10)}
                               disabled={adjustingUserId === userRow.id}
                               style={{
-                                padding: '0.35rem 0.75rem',
-                                borderRadius: '0.5rem',
+                                ...actionButtonBase,
                                 border: '1px solid #16a34a',
-                                background: adjustingUserId === userRow.id ? '#bbf7d0' : '#22c55e',
+                                background: adjustingUserId === userRow.id ? '#dcfce7' : '#22c55e',
                                 color: adjustingUserId === userRow.id ? '#166534' : '#fff',
-                                fontWeight: 600,
+                                opacity: adjustingUserId === userRow.id ? 0.85 : 1,
                               }}
                             >
                               {adjustingUserId === userRow.id
@@ -834,15 +970,15 @@ export function AdminDashboard() {
                             </button>
                           )}
                           <button
+                            type="button"
                             onClick={() => grantTokens(userRow.id, 5)}
                             disabled={grantingTokensId === userRow.id}
                             style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
+                              ...actionButtonBase,
                               border: '1px solid #a855f7',
-                              background: grantingTokensId === userRow.id ? '#e9d5ff' : '#a855f7',
+                              background: grantingTokensId === userRow.id ? '#ede9fe' : '#a855f7',
                               color: grantingTokensId === userRow.id ? '#6b21a8' : '#fff',
-                              fontWeight: 600,
+                              opacity: grantingTokensId === userRow.id ? 0.85 : 1,
                             }}
                           >
                             {grantingTokensId === userRow.id
@@ -850,15 +986,15 @@ export function AdminDashboard() {
                               : adminCopy.buttons.addTokens}
                           </button>
                           <button
+                            type="button"
                             onClick={() => resetDownloads(userRow)}
                             disabled={resettingUserId === userRow.id}
                             style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
+                              ...actionButtonBase,
                               border: '1px solid #0ea5e9',
                               background: resettingUserId === userRow.id ? '#bae6fd' : '#38bdf8',
                               color: resettingUserId === userRow.id ? '#0c4a6e' : '#0f172a',
-                              fontWeight: 600,
+                              opacity: resettingUserId === userRow.id ? 0.85 : 1,
                             }}
                           >
                             {resettingUserId === userRow.id
@@ -866,45 +1002,15 @@ export function AdminDashboard() {
                               : adminCopy.buttons.resetDownloads}
                           </button>
                           <button
-                            onClick={() => setPlan(userRow.id, userRow.plan === 'pro' ? 'free' : 'pro')}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #0f172a',
-                              background: '#fff',
-                              fontWeight: 600,
-                            }}
-                          >
-                            {userRow.plan === 'pro'
-                              ? adminCopy.buttons.setPlanToFree
-                              : adminCopy.buttons.setPlanToPro}
-                          </button>
-                          <button
-                            onClick={() => syncSubscription(userRow.id)}
-                            disabled={syncingUserId === userRow.id}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #2563eb',
-                              background: syncingUserId === userRow.id ? '#bfdbfe' : '#2563eb',
-                              color: syncingUserId === userRow.id ? '#1e3a8a' : '#fff',
-                              fontWeight: 600,
-                            }}
-                          >
-                            {syncingUserId === userRow.id
-                              ? adminCopy.buttons.refreshStatusLoading
-                              : adminCopy.buttons.refreshStatus}
-                          </button>
-                          <button
+                            type="button"
                             onClick={() => deleteUserAccount(userRow)}
                             disabled={deletingUserId === userRow.id}
                             style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
+                              ...actionButtonBase,
                               border: '1px solid #ef4444',
-                              background: deletingUserId === userRow.id ? '#fecaca' : '#ef4444',
+                              background: deletingUserId === userRow.id ? '#fee2e2' : '#ef4444',
                               color: deletingUserId === userRow.id ? '#991b1b' : '#fff',
-                              fontWeight: 600,
+                              opacity: deletingUserId === userRow.id ? 0.9 : 1,
                             }}
                           >
                             {deletingUserId === userRow.id
@@ -912,11 +1018,11 @@ export function AdminDashboard() {
                               : adminCopy.buttons.deleteUser}
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </section>

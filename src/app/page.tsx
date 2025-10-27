@@ -171,25 +171,40 @@ export default function LandingPage() {
             <p>{hero.templateGalleryCopy}</p>
           </div>
           <div className={styles.templateGrid}>
-            {templateShowcase.map((definition) => (
-              <article key={definition.id} className={styles.templateCard}>
-                <span className={styles.templateBadge}>{definition.name}</span>
-                <div className={styles.templatePreview}>
-                  <div className={styles.templatePreviewInner}>
-                    <div className={styles.templatePreviewContent}>
-                      {definition.renderPreview(definition.defaultContent)}
+            {templateShowcase.map((definition) => {
+              const dimensions = definition.previewDimensions ?? { width: 900, height: 1160 };
+              const previewScale = Math.min(1, 240 / dimensions.height);
+              return (
+                <article key={definition.id} className={styles.templateCard}>
+                  <span className={styles.templateBadge}>{definition.name}</span>
+                  <div className={styles.templatePreview}>
+                    <div
+                      className={styles.templatePreviewInner}
+                      style={{
+                        width: `${dimensions.width}px`,
+                        height: `${dimensions.height}px`,
+                        transform: `scale(${previewScale})`,
+                        transformOrigin: 'top center',
+                      }}
+                    >
+                      <div
+                        className={styles.templatePreviewContent}
+                        style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px` }}
+                      >
+                        {definition.renderPreview(definition.defaultContent)}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className={styles.templateMeta}>
-                  <h3>{definition.name}</h3>
-                  <p>{definition.description}</p>
-                  <Link href="/login" className={styles.templateLink}>
-                    {hero.templateUse}
-                  </Link>
-                </div>
-              </article>
-            ))}
+                  <div className={styles.templateMeta}>
+                    <h3>{definition.name}</h3>
+                    <p>{definition.description}</p>
+                    <Link href="/login" className={styles.templateLink}>
+                      {hero.templateUse}
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
 

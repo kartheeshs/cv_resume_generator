@@ -68,13 +68,13 @@ export default function AdminLoginPage() {
       </div>
 
       <div className={styles.cardWrapper}>
-        <main className={styles.card}>
+        <main className={`${styles.card} ${styles.cardCompact}`}>
           <header className={styles.cardHeader}>
             <h1>{adminCopy.cardTitle}</h1>
             <p>{adminCopy.cardCopy}</p>
           </header>
 
-          <form onSubmit={handleSubmit} className={styles.form}>
+          <form onSubmit={handleSubmit} className={`${styles.form} ${styles.formCompact}`}>
             <div className={styles.inputGroup}>
               <label htmlFor="admin-email">{adminCopy.labels.email}</label>
               <input

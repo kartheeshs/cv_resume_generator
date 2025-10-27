@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Timestamp,
@@ -653,11 +654,11 @@ export function ResumeDashboard() {
     setForm((previous) => ({ ...previous, language: value }));
   };
 
-  const saveDraft = async () => {
-    if (!user) return;
+  const saveDraft = async (): Promise<string | null> => {
+    if (!user) return null;
     if (!form.documentTitle.trim()) {
       setStatus(statuses.missingTitle);
-      return;
+      return null;
     }
 
     try {
@@ -681,17 +682,20 @@ export function ResumeDashboard() {
       if (form.id) {
         await setDoc(doc(db, 'drafts', form.id), payload, { merge: true });
         setStatus(statuses.draftUpdated);
-      } else {
-        const ref = await addDoc(collection(db, 'drafts'), {
-          ...payload,
-          createdAt: serverTimestamp(),
-        });
-        setForm((previous) => ({ ...previous, id: ref.id }));
-        setStatus(statuses.draftCreated);
+        return form.id;
       }
+
+      const ref = await addDoc(collection(db, 'drafts'), {
+        ...payload,
+        createdAt: serverTimestamp(),
+      });
+      setForm((previous) => ({ ...previous, id: ref.id }));
+      setStatus(statuses.draftCreated);
+      return ref.id;
     } catch (error) {
       console.error(error);
       setStatus(statuses.draftSaveFailed);
+      return null;
     }
   };
 
@@ -744,10 +748,6 @@ export function ResumeDashboard() {
   };
 
   const generatePdf = async () => {
-    if (!form.id) {
-      setStatus(statuses.saveBeforePdf);
-      return;
-    }
     if (!entitlements) {
       setStatus(statuses.missingEntitlements);
       return;
@@ -759,6 +759,15 @@ export function ResumeDashboard() {
         setStatus(statuses.downloadLimitReached);
       }
       return;
+    }
+
+    let draftId = form.id;
+    if (!draftId) {
+      const savedId = await saveDraft();
+      if (!savedId) {
+        return;
+      }
+      draftId = savedId;
     }
 
     try {
@@ -790,7 +799,7 @@ export function ResumeDashboard() {
         try {
           await addDoc(collection(db, 'downloads'), {
             userId: user.uid,
-            draftId: form.id ?? null,
+            draftId,
             templateId: form.templateId,
             documentTitle: form.documentTitle,
             language: form.language,
@@ -947,6 +956,24 @@ export function ResumeDashboard() {
                     </span>
                     <span style={{ fontWeight: 700 }}>{entitlements.remainingDownloads}</span>
                   </div>
+                  {entitlements.plan !== 'pro' && (
+                    <Link
+                      href="/#pricing"
+                      prefetch={false}
+                      style={{
+                        border: '1px solid rgba(37, 99, 235, 0.4)',
+                        background: '#2563eb',
+                        color: '#fff',
+                        padding: '0.55rem 1.1rem',
+                        borderRadius: '0.75rem',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        boxShadow: '0 12px 28px -18px rgba(37, 99, 235, 0.6)',
+                      }}
+                    >
+                      {dashboardCopy.subscribeCta}
+                    </Link>
+                  )}
                 </>
               ) : (
                 <div
