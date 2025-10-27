@@ -107,11 +107,13 @@ export default function LandingPage() {
       <div className={styles.wrapper}>
         <section className={styles.hero}>
           <div className={styles.heroContent}>
-            <span className={styles.heroBadge}>Career collateral platform</span>
-            <h1 className={styles.heroTitle}>Turn accomplishments into beautifully typeset resumes in minutes.</h1>
+            <span className={styles.heroBadge}>Career Studio GM7</span>
+            <h1 className={styles.heroTitle}>
+              Career Studio GM7 turns accomplishments into beautifully typeset resumes in minutes.
+            </h1>
             <p className={styles.heroCopy}>
-              Our CV Resume Generator combines a polished authoring environment with international-ready templates, PDF
-              exports, and admin controls so your team can scale hiring collateral without sacrificing design quality.
+              Our platform blends a polished authoring environment with international-ready templates, PDF exports, and
+              admin controls so your team can scale hiring collateral without sacrificing design quality.
             </p>
             <div className={styles.actions}>
               <Link href="/login" className={styles.primaryButton}>
@@ -139,7 +141,7 @@ export default function LandingPage() {
           </aside>
         </section>
 
-        <section className={styles.featureGrid}>
+        <section id="features" className={styles.featureGrid}>
           {features.map((feature) => (
             <article key={feature.title} className={styles.featureCard}>
               <h3>{feature.title}</h3>
@@ -148,7 +150,7 @@ export default function LandingPage() {
           ))}
         </section>
 
-        <section className={styles.templateShowcase}>
+        <section id="templates" className={styles.templateShowcase}>
           <div className={styles.sectionHeader}>
             <h2>Template gallery with instant previews</h2>
             <p>
@@ -182,7 +184,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className={styles.pricingSection}>
+        <section id="pricing" className={styles.pricingSection}>
           <div className={styles.sectionHeader}>
             <h2>Pricing that scales with your hiring pipeline</h2>
             <p>

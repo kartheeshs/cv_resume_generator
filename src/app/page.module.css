@@ -118,6 +118,7 @@
   display: grid;
   gap: 1.5rem;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  scroll-margin-top: 140px;
 }
 
 .featureCard {
@@ -162,6 +163,7 @@
 .templateShowcase {
   display: grid;
   gap: 1.8rem;
+  scroll-margin-top: 140px;
 }
 
 .templateGrid {
@@ -240,6 +242,7 @@
 .pricingSection {
   display: grid;
   gap: 1.8rem;
+  scroll-margin-top: 140px;
 }
 
 .pricingGrid {

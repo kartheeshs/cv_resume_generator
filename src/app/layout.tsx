@@ -5,9 +5,9 @@ import { Suspense } from "react";
 import { TopNav } from "@/components/TopNav";
 
 export const metadata: Metadata = {
-  title: "CV Resume Generator",
+  title: "Career Studio GM7",
   description:
-    "Generate polished resumes with Firebase Auth, Firestore, and on-demand PDF streaming.",
+    "Career Studio GM7 helps teams craft polished resumes with Firebase Auth, Firestore, and on-demand PDF streaming.",
 };
 
 export default function RootLayout({
