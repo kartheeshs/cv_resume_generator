@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import { usePathname } from 'next/navigation';
 
 const marketingLinks = [
   { href: '/#features', label: 'Features' },
@@ -58,7 +59,13 @@ const LogoMark = () => (
 );
 
 export function TopNav() {
-  const { user, profile, signOut } = useAuth();
+  const pathname = usePathname();
+  const onAdminRoute = pathname?.startsWith('/admin');
+  const { user, signOut } = useAuth();
+
+  if (onAdminRoute) {
+    return null;
+  }
 
   return (
     <header
@@ -139,18 +146,6 @@ export function TopNav() {
             }}
           >
             Dashboard
-          </Link>
-          <Link
-            href={profile?.role === 'admin' ? '/admin' : '/admin/login'}
-            style={{
-              color: profile?.role === 'admin' ? '#0f172a' : '#1f2937',
-              padding: '0.45rem 0.85rem',
-              borderRadius: '9999px',
-              background: profile?.role === 'admin' ? 'rgba(14, 165, 233, 0.12)' : 'transparent',
-              border: profile?.role === 'admin' ? 'none' : '1px solid rgba(148, 163, 184, 0.35)',
-            }}
-          >
-            Admin
           </Link>
         </nav>
       </div>

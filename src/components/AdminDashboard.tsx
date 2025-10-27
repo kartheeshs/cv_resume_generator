@@ -66,7 +66,7 @@ function formatDateTime(value?: Date) {
 }
 
 export function AdminDashboard() {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [downloads, setDownloads] = useState<DownloadRow[]>([]);
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
@@ -270,48 +270,151 @@ export function AdminDashboard() {
   };
 
   return (
-    <section style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto', display: 'grid', gap: '1.5rem' }}>
-      <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '1rem', border: '1px solid #e2e8f0', boxShadow: '0 24px 60px -35px rgba(15, 23, 42, 0.25)' }}>
-        <h1 style={{ margin: '0 0 0.5rem', fontSize: '2rem' }}>Admin control center</h1>
-        <p style={{ margin: 0, color: '#475569' }}>
-          Manage users, downloads, and subscriptions. Signed in as <strong>{profile?.email}</strong> with
-          <strong> {profile?.role}</strong> access.
-        </p>
-        <p style={{ margin: '0.5rem 0 0', color: '#6366f1', fontWeight: 500 }}>
-          Stripe automation is running in demo mode—actions here simulate the real billing flows.
-        </p>
-        {status && (
-          <p style={{ marginTop: '1rem', color: '#2563eb' }}>
-            {status}
-          </p>
-        )}
-      </div>
-
-      <nav style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-        {ADMIN_TABS.map((tab) => {
-          const isActive = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#f1f5f9',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <header
+        style={{
+          background: '#0f172a',
+          color: '#f8fafc',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.25)',
+          padding: '1rem 1.5rem',
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          display: 'grid',
+          gap: '0.75rem',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span
+              aria-hidden
               style={{
-                padding: '0.65rem 1.2rem',
-                borderRadius: '9999px',
-                border: isActive ? '1px solid #1d4ed8' : '1px solid #cbd5f5',
-                background: isActive ? '#1d4ed8' : '#f8fafc',
-                color: isActive ? '#fff' : '#1e293b',
-                fontWeight: 600,
-                cursor: 'pointer',
+                width: '38px',
+                height: '38px',
+                borderRadius: '1rem',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(14, 165, 233, 0.85))',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 14px 30px -22px rgba(14, 165, 233, 0.9)',
               }}
             >
-              {tab.label}
-            </button>
-          );
-        })}
-      </nav>
+              <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '0.08em' }}>GM</span>
+            </span>
+            <div style={{ display: 'grid', lineHeight: 1.2 }}>
+              <span style={{ fontWeight: 700, letterSpacing: '0.02em' }}>Career Studio GM7</span>
+              <span style={{ fontSize: '0.85rem', color: '#c7d2fe', letterSpacing: '0.08em' }}>Admin Console</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => signOut()}
+            style={{
+              border: 'none',
+              background: 'linear-gradient(135deg, #22d3ee, #6366f1)',
+              color: '#0f172a',
+              padding: '0.55rem 1.1rem',
+              borderRadius: '9999px',
+              fontWeight: 600,
+              boxShadow: '0 18px 40px -26px rgba(34, 211, 238, 0.65)',
+              cursor: 'pointer',
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: '0.5rem',
+            flexWrap: 'wrap',
+            overflowX: 'auto',
+            paddingBottom: '0.25rem',
+          }}
+        >
+          {ADMIN_TABS.map((tab) => {
+            const isActive = tab.id === activeTab;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '9999px',
+                  border: isActive ? '1px solid rgba(59, 130, 246, 0.9)' : '1px solid rgba(148, 163, 184, 0.35)',
+                  background: isActive ? 'rgba(14, 165, 233, 0.18)' : 'rgba(15, 23, 42, 0.35)',
+                  color: '#f8fafc',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(12px)',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </header>
 
-      {activeTab === 'overview' && (
+      <main
+        style={{
+          flex: '1 1 auto',
+          width: '100%',
+          padding: '2rem 1.5rem 3rem',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gap: '1.5rem' }}>
+          <div
+            style={{
+              background: '#fff',
+              padding: '1.5rem',
+              borderRadius: '1rem',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 24px 60px -35px rgba(15, 23, 42, 0.22)',
+            }}
+          >
+            <h1 style={{ margin: '0 0 0.5rem', fontSize: '2rem', color: '#0f172a' }}>Admin control center</h1>
+            <p style={{ margin: 0, color: '#475569' }}>
+              Manage users, downloads, and subscriptions. Signed in as <strong>{profile?.email}</strong> with
+              <strong> {profile?.role}</strong> access.
+            </p>
+            <p style={{ margin: '0.5rem 0 0', color: '#6366f1', fontWeight: 500 }}>
+              Stripe automation is running in demo mode—actions here simulate the real billing flows.
+            </p>
+            {status && (
+              <div
+                style={{
+                  marginTop: '1rem',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.9rem',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  color: '#1d4ed8',
+                  fontWeight: 500,
+                }}
+              >
+                {status}
+              </div>
+            )}
+          </div>
+
+          {activeTab === 'overview' && (
         <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.5rem' }}>
           <div>
             <h2 style={{ margin: 0 }}>Operational snapshot</h2>
@@ -600,58 +703,60 @@ export function AdminDashboard() {
         </section>
       )}
 
-      {activeTab === 'templates' && (
-        <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}>
-          <div>
-            <h2 style={{ margin: 0 }}>Templates</h2>
-            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{ADMIN_TABS.find((tab) => tab.id === 'templates')?.description}</p>
-          </div>
-          {loadingTemplates ? (
-            <p style={{ color: '#64748b' }}>Loading templates…</p>
-          ) : templates.length === 0 ? (
-            <p style={{ color: '#64748b' }}>No templates available.</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.85rem', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-              {templates.map((template) => (
-                <li
-                  key={template.id}
-                  style={{
-                    border: '1px solid #cbd5f5',
-                    borderRadius: '0.85rem',
-                    padding: '1rem',
-                    background: '#f8fafc',
-                    display: 'grid',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <div>
-                    <strong style={{ fontSize: '1.1rem' }}>{template.name}</strong>
-                    <div style={{ fontSize: '0.9rem', color: '#475569', marginTop: '0.35rem' }}>{template.description}</div>
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                    Kind: {template.kind.toUpperCase()} · Accent: {template.accentColor}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => duplicateTemplate(template)}
-                    style={{
-                      justifySelf: 'start',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.75rem',
-                      border: '1px solid #2563eb',
-                      background: '#2563eb',
-                      color: '#fff',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Duplicate template
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {activeTab === 'templates' && (
+            <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Templates</h2>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{ADMIN_TABS.find((tab) => tab.id === 'templates')?.description}</p>
+              </div>
+              {loadingTemplates ? (
+                <p style={{ color: '#64748b' }}>Loading templates…</p>
+              ) : templates.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No templates available.</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.85rem', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+                  {templates.map((template) => (
+                    <li
+                      key={template.id}
+                      style={{
+                        border: '1px solid #cbd5f5',
+                        borderRadius: '0.85rem',
+                        padding: '1rem',
+                        background: '#f8fafc',
+                        display: 'grid',
+                        gap: '0.5rem',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '1.1rem' }}>{template.name}</strong>
+                        <div style={{ fontSize: '0.9rem', color: '#475569', marginTop: '0.35rem' }}>{template.description}</div>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                        Kind: {template.kind.toUpperCase()} · Accent: {template.accentColor}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => duplicateTemplate(template)}
+                        style={{
+                          justifySelf: 'start',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '0.75rem',
+                          border: '1px solid #2563eb',
+                          background: '#2563eb',
+                          color: '#fff',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Duplicate template
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
-        </section>
-      )}
-    </section>
+        </div>
+      </main>
+    </div>
   );
 }
