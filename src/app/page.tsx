@@ -1,63 +1,10 @@
+'use client';
+
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
+import { useLocalization } from '@/context/LocalizationContext';
 import { resumeTemplateDefinitions } from '@/templates/resume/definitions';
 import styles from './page.module.css';
-
-const features = [
-  {
-    title: 'Streamed PDF generation',
-    description:
-      'Generate resumes on the fly without storing files thanks to Next.js route handlers and @react-pdf/renderer.',
-  },
-  {
-    title: 'Secure authentication',
-    description:
-      'Offer passwordless email links and Google sign-in powered by Firebase Auth in the Tokyo region.',
-  },
-  {
-    title: 'Flexible editing',
-    description:
-      'Save drafts, templates, and entitlement tracking in Firestore so your data is always up to date.',
-  },
-  {
-    title: 'Ready to scale',
-    description:
-      'Deploy on Vercel with server-side rendering, connect Upstash for rate limiting, and plug Stripe in when you are ready to charge.',
-  },
-];
-
-const metrics = [
-  { label: 'Templates', value: '12+' },
-  { label: 'Locales supported', value: '6' },
-  { label: 'Avg. export time', value: '~2s' },
-  { label: 'Draft autosave', value: 'Realtime' },
-];
-
-const heroMetadata = [
-  { label: 'Latest update', value: 'June 2024' },
-  { label: 'Version', value: 'v2.1' },
-  { label: 'Access', value: 'Included with Growth plan' },
-];
-
-const resourceLinks = [
-  {
-    title: 'Platform overview',
-    description: 'Understand the editor workflow from login to PDF export.',
-    href: '/#overview',
-  },
-  {
-    title: 'Template showcase',
-    description: 'Preview localized resume and CV layouts built into the product.',
-    href: '/#templates',
-  },
-  {
-    title: 'Pricing & limits',
-    description: 'Compare free, growth, and enterprise entitlements at a glance.',
-    href: '/#pricing',
-  },
-];
-
-const tags = ['Resume builder', 'Design system', 'Hiring', 'Templates', 'PDF', 'Firebase'];
 
 const templateShowcase = Object.values(resumeTemplateDefinitions).slice(0, 4);
 
@@ -73,86 +20,57 @@ type PricingPlan = {
   badge?: string;
 };
 
-const pricingPlans: PricingPlan[] = [
-  {
-    name: 'Starter',
-    price: '$0',
-    frequency: '/month',
-    description: 'For individuals trying the builder before sharing their first PDF.',
-    features: ['3 saved resumes', 'Single-page PDF exports', 'Email link authentication'],
-    cta: 'Start for free',
-    href: '/login?plan=starter',
-  },
-  {
-    name: 'Growth',
-    price: '¥999',
-    frequency: '/seat /month',
-    description: 'For talent teams publishing polished resumes every week.',
-    features: [
-      'Unlimited drafts & version history',
-      'Full template library & locale packs',
-      'Brand colors, fonts & shared assets',
-      'Priority email support',
-    ],
-    cta: 'Upgrade to Growth',
-    href: '/login?plan=growth',
-    highlighted: true,
-    badge: 'Most popular',
-  },
-  {
-    name: 'Enterprise',
-    price: 'Contact us',
-    description: 'For global organizations that need advanced governance and support.',
-    features: [
-      'SAML SSO & SCIM provisioning',
-      'Custom template production services',
-      'Dedicated customer success manager',
-      'On-premises export pipeline options',
-    ],
-    cta: 'Book a call',
-    href: '/login?plan=enterprise',
-  },
-];
-
 const previewBackdrop: CSSProperties = {
   background:
     'radial-gradient(circle at 12% 12%, rgba(79,70,229,0.15) 0%, rgba(79,70,229,0) 45%), radial-gradient(circle at 88% 20%, rgba(14,165,233,0.18) 0%, rgba(14,165,233,0) 50%), linear-gradient(155deg, #0f172a 0%, #312e81 45%, #1e1b4b 100%)',
 };
 
 export default function LandingPage() {
+  const { copy, settings } = useLocalization();
+  const { landing } = copy;
+  const { hero } = landing;
+  const pricingPlans = landing.pricingPlans.map((plan) => ({
+    name: plan.name,
+    price: plan.priceKey === 'growth' ? settings.pricing.growthPrice : plan.price ?? '',
+    frequency: plan.priceKey === 'growth' ? settings.pricing.growthFrequency : plan.frequency,
+    description: plan.description,
+    features: plan.features,
+    cta: plan.cta,
+    href: plan.href,
+    highlighted: plan.highlighted,
+    badge: plan.badge,
+  }));
+
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
         <section className={styles.heroSection}>
           <div className={styles.heroMetaRow}>
             <div className={styles.heroBreadcrumbs}>
-              <Link href="/">Career Studio GM7</Link>
+              <Link href="/">{hero.breadcrumbs.home}</Link>
               <span aria-hidden>›</span>
-              <span>Resume editor website flow</span>
+              <span>{hero.breadcrumbs.trail}</span>
             </div>
-            <span className={styles.heroContextPill}>Career Studio GM7</span>
+            <span className={styles.heroContextPill}>{hero.contextPill}</span>
           </div>
 
           <div className={styles.heroLayout}>
             <div className={styles.preview}>
               <div className={styles.previewToolbar}>
-                <span>Resume Editor Website Flow</span>
+                <span>{hero.previewTitle}</span>
                 <div className={styles.previewToolbarMeta}>
-                  <span>Last updated {heroMetadata[0].value}</span>
-                  <span>1.2k previews</span>
+                  <span>{hero.previewUpdatedLabel}</span>
+                  <span>{hero.previewViews}</span>
                 </div>
               </div>
               <div className={styles.previewCanvas} style={previewBackdrop}>
                 <div className={styles.previewContent}>
-                  <span>Career Studio GM7</span>
-                  <h2>Modern resumes without wrestling with layout files</h2>
-                  <p>
-                    Pick a template, tailor the copy, and hand a recruiter a polished PDF minutes after signing in. Team
-                    guardrails make every export feel on-brand.
-                  </p>
+                  <span>{hero.badge}</span>
+                  <h2>{hero.previewHeading}</h2>
+                  <p>{hero.previewDescription}</p>
                   <ul>
-                    {features.slice(0, 3).map((feature) => (
-                      <li key={feature.title}>{feature.title}</li>
+                    {hero.previewList.map((item) => (
+                      <li key={item}>{item}</li>
                     ))}
                   </ul>
                 </div>
@@ -160,15 +78,11 @@ export default function LandingPage() {
             </div>
 
             <aside className={styles.heroPanel}>
-              <span className={styles.heroBadge}>Career Studio GM7</span>
-              <h1 className={styles.heroTitle}>Build resume experiences your candidates will love</h1>
-              <p className={styles.heroCopy}>
-                Designed to echo a polished product page, this flow showcases pricing, templates, and authentication while
-                keeping admin utilities only a direct URL away. Everything is tuned for clarity when you share it with
-                stakeholders.
-              </p>
+              <span className={styles.heroBadge}>{hero.badge}</span>
+              <h1 className={styles.heroTitle}>{hero.title}</h1>
+              <p className={styles.heroCopy}>{hero.copy}</p>
               <div className={styles.heroStats}>
-                {metrics.map((metric) => (
+                {hero.metrics.map((metric) => (
                   <div key={metric.label} className={styles.heroStat}>
                     <span>{metric.value}</span>
                     <small>{metric.label}</small>
@@ -177,14 +91,14 @@ export default function LandingPage() {
               </div>
               <div className={styles.heroActions}>
                 <Link href="/login" className={styles.primaryAction}>
-                  Launch editor
+                  {hero.primaryAction}
                 </Link>
                 <Link href="/#templates" className={styles.secondaryAction}>
-                  Preview templates
+                  {hero.secondaryAction}
                 </Link>
               </div>
               <dl className={styles.heroMetaList}>
-                {heroMetadata.map((item) => (
+                {hero.metadata.map((item) => (
                   <div key={item.label}>
                     <dt>{item.label}</dt>
                     <dd>{item.value}</dd>
@@ -197,14 +111,10 @@ export default function LandingPage() {
 
         <section id="overview" className={styles.contentSection}>
           <article className={styles.overview}>
-            <h2>Overview</h2>
-            <p>
-              A landing experience inspired by Figma community resources—introducing a hero preview, detailed release
-              metadata, and a modular layout that surfaces features, templates, and plan restrictions without feeling
-              crowded.
-            </p>
+            <h2>{hero.overviewTitle}</h2>
+            <p>{hero.featuresIntro}</p>
             <ul className={styles.highlightList}>
-              {features.map((feature) => (
+              {hero.features.map((feature) => (
                 <li key={feature.title} className={styles.highlightItem}>
                   <h3>{feature.title}</h3>
                   <p>{feature.description}</p>
@@ -215,25 +125,25 @@ export default function LandingPage() {
 
           <aside className={styles.sidebar}>
             <div className={styles.infoCard}>
-              <h3>Project metadata</h3>
+              <h3>{hero.projectMetadataTitle}</h3>
               <dl className={styles.infoList}>
-                {heroMetadata.map((item) => (
+                {hero.metadata.map((item) => (
                   <div key={`meta-${item.label}`}>
                     <dt>{item.label}</dt>
                     <dd>{item.value}</dd>
                   </div>
                 ))}
                 <div>
-                  <dt>Maintainer</dt>
-                  <dd>Career Studio GM7 design systems</dd>
+                  <dt>{hero.maintainerLabel}</dt>
+                  <dd>{hero.maintainerValue}</dd>
                 </div>
               </dl>
             </div>
 
             <div className={styles.infoCard}>
-              <h3>Resources</h3>
+              <h3>{hero.resourcesTitle}</h3>
               <ul className={styles.resourceList}>
-                {resourceLinks.map((resource) => (
+                {hero.resources.map((resource) => (
                   <li key={resource.title}>
                     <Link href={resource.href}>
                       <span>{resource.title}</span>
@@ -245,9 +155,9 @@ export default function LandingPage() {
             </div>
 
             <div className={styles.tagCard}>
-              <h3>Tags</h3>
+              <h3>{hero.tagsTitle}</h3>
               <div className={styles.tagList}>
-                {tags.map((tag) => (
+                {hero.tags.map((tag) => (
                   <span key={tag}>{tag}</span>
                 ))}
               </div>
@@ -257,11 +167,8 @@ export default function LandingPage() {
 
         <section id="templates" className={styles.templateSection}>
           <div className={styles.sectionHeader}>
-            <h2>Template gallery</h2>
-            <p>
-              Browse localized resume systems with typography tuned for hiring teams. Each template ships with rich sample
-              data so stakeholders see exactly how content comes together.
-            </p>
+            <h2>{hero.templateGalleryTitle}</h2>
+            <p>{hero.templateGalleryCopy}</p>
           </div>
           <div className={styles.templateGrid}>
             {templateShowcase.map((definition) => (
@@ -278,7 +185,7 @@ export default function LandingPage() {
                   <h3>{definition.name}</h3>
                   <p>{definition.description}</p>
                   <Link href="/login" className={styles.templateLink}>
-                    Use this template
+                    {hero.templateUse}
                   </Link>
                 </div>
               </article>
@@ -288,11 +195,8 @@ export default function LandingPage() {
 
         <section id="pricing" className={styles.pricingSection}>
           <div className={styles.sectionHeader}>
-            <h2>Pricing & availability</h2>
-            <p>
-              Free plans showcase the full editor once, Growth unlocks collaborative workflows, and Enterprise brings
-              governance plus bespoke template production.
-            </p>
+            <h2>{hero.pricingTitle}</h2>
+            <p>{hero.pricingCopy}</p>
           </div>
           <div className={styles.pricingGrid}>
             {pricingPlans.map((plan) => (
@@ -324,18 +228,15 @@ export default function LandingPage() {
 
         <section className={styles.ctaBanner}>
           <div>
-            <h2>Ready to build your next standout resume?</h2>
-            <p>
-              Sign in to Career Studio GM7 to unlock the editor, invite collaborators, and manage download limits with a
-              click.
-            </p>
+            <h2>{hero.ctaTitle}</h2>
+            <p>{hero.ctaCopy}</p>
           </div>
           <div className={styles.ctaActions}>
             <Link href="/login" className={styles.primaryAction}>
-              Sign in to continue
+              {hero.ctaPrimary}
             </Link>
             <Link href="/dashboard" className={styles.secondaryAction}>
-              Explore dashboard
+              {hero.ctaSecondary}
             </Link>
           </div>
         </section>

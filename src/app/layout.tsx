@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { LocalizationProvider } from "@/context/LocalizationContext";
 import { Suspense } from "react";
 import { TopNav } from "@/components/TopNav";
 
@@ -18,12 +19,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
-          <TopNav />
-          <Suspense fallback={<div style={{ padding: "2rem" }}>Loading...</div>}>
-            {children}
-          </Suspense>
-        </AuthProvider>
+        <LocalizationProvider>
+          <AuthProvider>
+            <TopNav />
+            <Suspense fallback={<div style={{ padding: "2rem" }}>Loading...</div>}>
+              {children}
+            </Suspense>
+          </AuthProvider>
+        </LocalizationProvider>
       </body>
     </html>
   );

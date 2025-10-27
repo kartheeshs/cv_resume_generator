@@ -2,19 +2,21 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import { useLocalization } from '@/context/LocalizationContext';
 import { usePathname } from 'next/navigation';
 import { CareerStudioLogo } from './CareerStudioLogo';
 
-const marketingLinks = [
-  { href: '/#overview', label: 'Overview' },
-  { href: '/#templates', label: 'Templates' },
-  { href: '/#pricing', label: 'Pricing' },
-];
+const languageOptions = [
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+] as const;
 
 export function TopNav() {
   const pathname = usePathname();
   const onAdminRoute = pathname?.startsWith('/admin');
   const { user, signOut } = useAuth();
+  const { copy, language, setLanguage } = useLocalization();
+  const { nav } = copy;
 
   if (onAdminRoute) {
     return null;
@@ -66,7 +68,7 @@ export function TopNav() {
               fontWeight: 600,
             }}
           >
-            {marketingLinks.map((link) => (
+            {nav.marketingLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -92,7 +94,7 @@ export function TopNav() {
                 textDecoration: 'none',
               }}
             >
-              Dashboard
+              {nav.dashboard}
             </Link>
           </nav>
         </div>
@@ -136,7 +138,7 @@ export function TopNav() {
             </svg>
             <input
               type="search"
-              placeholder="Search templates"
+              placeholder={nav.searchPlaceholder}
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -147,6 +149,41 @@ export function TopNav() {
                 minWidth: '160px',
               }}
             />
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: '#fff',
+              border: '1px solid rgba(148, 163, 184, 0.25)',
+              borderRadius: '0.75rem',
+              padding: '0.35rem 0.65rem',
+              color: '#475569',
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{nav.languageLabel}</span>
+            <select
+              value={language}
+              onChange={(event) =>
+                setLanguage(event.target.value === 'ja' ? 'ja' : 'en')
+              }
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                color: '#1f2937',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {languageOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           {user ? (
             <button
@@ -163,7 +200,7 @@ export function TopNav() {
                 cursor: 'pointer',
               }}
             >
-              Sign out
+              {nav.signOut}
             </button>
           ) : (
             <Link
@@ -179,7 +216,7 @@ export function TopNav() {
                 boxShadow: '0 12px 28px -18px rgba(37, 99, 235, 0.6)',
               }}
             >
-              Sign in
+              {nav.signIn}
             </Link>
           )}
         </div>

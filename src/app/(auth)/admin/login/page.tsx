@@ -5,11 +5,14 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { CareerStudioLogo } from '@/components/CareerStudioLogo';
+import { useLocalization } from '@/context/LocalizationContext';
 import styles from '../../login/login.module.css';
 
 export default function AdminLoginPage() {
   const { profile, signInWithPassword, signOut, user } = useAuth();
   const router = useRouter();
+  const { copy } = useLocalization();
+  const adminCopy = copy.adminLogin;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<string | null>(null);
@@ -24,7 +27,7 @@ export default function AdminLoginPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!email || !password) {
-      setStatus('Enter the admin email address and password.');
+      setStatus(adminCopy.status.missingCredentials);
       return;
     }
     setLoading(true);
@@ -32,14 +35,14 @@ export default function AdminLoginPage() {
     try {
       const result = await signInWithPassword(email, password);
       if (!result || result.role !== 'admin') {
-        setStatus('This account does not have admin access.');
+        setStatus(adminCopy.status.invalidRole);
         await signOut();
         return;
       }
       router.replace('/admin');
     } catch (error) {
       console.error('Admin sign-in failed', error);
-      setStatus('Unable to sign in. Confirm your admin credentials and try again.');
+      setStatus(adminCopy.status.signInError);
     } finally {
       setLoading(false);
     }
@@ -52,17 +55,14 @@ export default function AdminLoginPage() {
           <span className={styles.heroBadge}>
             <CareerStudioLogo variant="inline" markSize={34} wordmarkStyle={{ fontSize: '0.95rem' }} />
           </span>
-          <span className={styles.heroTagline}>Admin workspace</span>
+          <span className={styles.heroTagline}>{adminCopy.heroTagline}</span>
         </div>
-        <h1 className={styles.heroTitle}>Secure admin access</h1>
-        <p className={styles.heroCopy}>
-          Monitor workspace activity, reset download allowances, and oversee subscriptions. Only approved administrators can
-          access this console.
-        </p>
+        <h1 className={styles.heroTitle}>{adminCopy.heroTitle}</h1>
+        <p className={styles.heroCopy}>{adminCopy.heroCopy}</p>
         <div className={styles.brandRow}>
-          <span>Need the main workspace?</span>
+          <span>{adminCopy.heroLinkPrompt}</span>
           <Link href="/login" style={{ color: '#e0e7ff', fontWeight: 600 }}>
-            Return to member sign-in
+            {adminCopy.heroLinkText}
           </Link>
         </div>
       </div>
@@ -70,40 +70,40 @@ export default function AdminLoginPage() {
       <div className={styles.cardWrapper}>
         <main className={styles.card}>
           <header className={styles.cardHeader}>
-            <h1>Admin console sign-in</h1>
-            <p>Use the credentials issued to administrators of Career Studio GM7.</p>
+            <h1>{adminCopy.cardTitle}</h1>
+            <p>{adminCopy.cardCopy}</p>
           </header>
 
           <form onSubmit={handleSubmit} className={styles.form}>
             <div className={styles.inputGroup}>
-              <label htmlFor="admin-email">Admin email</label>
+              <label htmlFor="admin-email">{adminCopy.labels.email}</label>
               <input
                 id="admin-email"
                 type="email"
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="admin@example.com"
+                placeholder={adminCopy.placeholders.email}
                 className={styles.input}
                 autoComplete="email"
               />
             </div>
             <div className={styles.inputGroup}>
-              <label htmlFor="admin-password">Password</label>
+              <label htmlFor="admin-password">{adminCopy.labels.password}</label>
               <input
                 id="admin-password"
                 type="password"
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter your admin password"
+                placeholder={adminCopy.placeholders.password}
                 className={styles.input}
                 minLength={8}
                 autoComplete={user ? 'current-password' : 'new-password'}
               />
             </div>
             <button type="submit" disabled={loading} className={styles.primaryButton}>
-              {loading ? 'Signing in…' : 'Access admin dashboard'}
+              {loading ? adminCopy.submitLoading : adminCopy.submitIdle}
             </button>
           </form>
 

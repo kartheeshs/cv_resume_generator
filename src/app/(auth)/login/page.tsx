@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { CareerStudioLogo } from '@/components/CareerStudioLogo';
+import { useLocalization } from '@/context/LocalizationContext';
 import styles from './login.module.css';
 
 type AuthMode = 'signin' | 'signup';
@@ -12,6 +13,8 @@ type AuthMethod = 'magic-link' | 'password';
 export default function LoginPage() {
   const { sendEmailLink, signInWithGoogle, signInWithPassword, signUpWithPassword, user } = useAuth();
   const router = useRouter();
+  const { copy } = useLocalization();
+  const loginCopy = copy.login;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,15 +34,15 @@ export default function LoginPage() {
       await sendEmailLink(email);
       const confirmationText =
         mode === 'signup'
-          ? 'Check your inbox to confirm your new account.'
-          : 'Check your inbox for a secure sign-in link.';
+          ? loginCopy.status.emailSentSignUp
+          : loginCopy.status.emailSentSignIn;
       if (typeof window !== 'undefined') {
         window.localStorage.setItem('authFlowMode', mode);
       }
       setStatus(confirmationText);
     } catch (error) {
       console.error(error);
-      setStatus('Unable to send sign-in email. Please try again.');
+      setStatus(loginCopy.status.sendEmailError);
     } finally {
       setSending(false);
     }
@@ -49,15 +52,15 @@ export default function LoginPage() {
     event.preventDefault();
     if (method !== 'password') return;
     if (!email || !password) {
-      setStatus('Please provide both an email address and password.');
+      setStatus(loginCopy.status.missingCredentials);
       return;
     }
     if (mode === 'signup' && password.length < 8) {
-      setStatus('Choose a password with at least 8 characters.');
+      setStatus(loginCopy.status.shortPassword);
       return;
     }
     if (mode === 'signup' && password !== confirmPassword) {
-      setStatus('Passwords do not match.');
+      setStatus(loginCopy.status.passwordMismatch);
       return;
     }
     setSending(true);
@@ -73,8 +76,8 @@ export default function LoginPage() {
       console.error(error);
       setStatus(
         mode === 'signin'
-          ? 'Unable to sign in with that password. Please check your details and try again.'
-          : 'Unable to create the account. Please verify your details and try again.'
+          ? loginCopy.status.passwordSignInFailed
+          : loginCopy.status.passwordSignUpFailed
       );
     } finally {
       setSending(false);
@@ -90,7 +93,7 @@ export default function LoginPage() {
       router.push('/dashboard');
     } catch (error) {
       console.error(error);
-      setStatus('Google sign-in failed. Please retry.');
+      setStatus(loginCopy.status.googleFailed);
     }
   };
 
@@ -107,27 +110,20 @@ export default function LoginPage() {
           <span className={styles.heroBadge}>
             <CareerStudioLogo variant="inline" markSize={34} wordmarkStyle={{ fontSize: '0.95rem' }} />
           </span>
-          <span className={styles.heroTagline}>Premium resume workspace</span>
+          <span className={styles.heroTagline}>{loginCopy.heroTagline}</span>
         </div>
-        <h1 className={styles.heroTitle}>A polished resume platform that feels like your design team built it.</h1>
-        <p className={styles.heroCopy}>
-          Craft localized resumes and global CVs with modern templates, collaborative controls, and export-ready PDF
-          rendering—all secured by passwordless authentication.
-        </p>
+        <h1 className={styles.heroTitle}>{loginCopy.heroTitle}</h1>
+        <p className={styles.heroCopy}>{loginCopy.heroCopy}</p>
         <div className={styles.brandRow}>
-          <span>Trusted for premium resume workflows.</span>
+          <span>{loginCopy.heroBrand}</span>
         </div>
       </div>
 
       <div className={styles.cardWrapper}>
         <main className={styles.card}>
           <header className={styles.cardHeader}>
-            <h1>{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h1>
-            <p>
-              {mode === 'signin'
-                ? 'Choose a secure password login or receive a one-time magic link. You can also continue instantly with Google.'
-                : 'Create your account with a password or request a secure email link. Google sign-in is also available.'}
-            </p>
+            <h1>{mode === 'signin' ? loginCopy.cardTitleSignIn : loginCopy.cardTitleSignUp}</h1>
+            <p>{mode === 'signin' ? loginCopy.cardDescriptionSignIn : loginCopy.cardDescriptionSignUp}</p>
           </header>
 
           <div className={styles.methodSwitch}>
@@ -141,7 +137,7 @@ export default function LoginPage() {
                 setConfirmPassword('');
               }}
             >
-              Email magic link
+              {loginCopy.methodMagicLink}
             </button>
             <button
               type="button"
@@ -153,48 +149,48 @@ export default function LoginPage() {
                 setConfirmPassword('');
               }}
             >
-              Use password
+              {loginCopy.methodPassword}
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className={styles.form}>
             <div className={styles.inputGroup}>
-              <label htmlFor="email">Email address</label>
+              <label htmlFor="email">{loginCopy.labels.email}</label>
               <input
                 id="email"
                 type="email"
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
+                placeholder={loginCopy.placeholders.email}
                 className={styles.input}
               />
             </div>
             {method === 'password' && (
               <>
                 <div className={styles.inputGroup}>
-                  <label htmlFor="password">Password</label>
+                  <label htmlFor="password">{loginCopy.labels.password}</label>
                   <input
                     id="password"
                     type="password"
                     required
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Enter a secure password"
+                    placeholder={loginCopy.placeholders.password}
                     className={styles.input}
                     minLength={8}
                   />
                 </div>
                 {mode === 'signup' && (
                   <div className={styles.inputGroup}>
-                    <label htmlFor="confirmPassword">Confirm password</label>
+                    <label htmlFor="confirmPassword">{loginCopy.labels.confirmPassword}</label>
                     <input
                       id="confirmPassword"
                       type="password"
                       required
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}
-                      placeholder="Re-enter your password"
+                      placeholder={loginCopy.placeholders.confirmPassword}
                       className={styles.input}
                       minLength={8}
                     />
@@ -206,23 +202,23 @@ export default function LoginPage() {
               {sending
                 ? method === 'password'
                   ? mode === 'signin'
-                    ? 'Signing in…'
-                    : 'Creating account…'
-                  : 'Sending…'
+                    ? loginCopy.submit.signingIn
+                    : loginCopy.submit.creatingAccount
+                  : loginCopy.submit.sending
                 : method === 'password'
                 ? mode === 'signin'
-                  ? 'Sign in with password'
-                  : 'Create account with password'
+                  ? loginCopy.submit.passwordSignIn
+                  : loginCopy.submit.passwordSignUp
                 : mode === 'signin'
-                ? 'Email me a sign-in link'
-                : 'Email me a sign-up link'}
+                ? loginCopy.submit.magicLinkSignIn
+                : loginCopy.submit.magicLinkSignUp}
             </button>
           </form>
 
-          <div className={styles.divider}>or continue with</div>
+          <div className={styles.divider}>{loginCopy.divider}</div>
 
           <button onClick={handleGoogle} className={styles.secondaryButton}>
-            Continue with Google
+            {loginCopy.continueWithGoogle}
           </button>
 
           <button
@@ -236,7 +232,7 @@ export default function LoginPage() {
             }}
             className={styles.ghostButton}
           >
-            {mode === 'signin' ? 'Need an account? Create one' : 'Already have an account? Sign in'}
+            {mode === 'signin' ? loginCopy.switchToSignUp : loginCopy.switchToSignIn}
           </button>
 
           {status && <p className={styles.status}>{status}</p>}

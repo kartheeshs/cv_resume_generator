@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { formatMessage, useLocalization } from '@/context/LocalizationContext';
 import {
   CertificationEntry,
   EducationEntry,
@@ -204,13 +205,6 @@ const TEMPLATE_THUMBNAIL_HEIGHT = 1120;
 const TEMPLATE_THUMBNAIL_SCALE = 0.23;
 type DashboardSection = 'resume' | 'cv' | 'drafts' | 'downloads' | 'settings';
 
-const DASHBOARD_MENU: { id: DashboardSection; label: string; description: string }[] = [
-  { id: 'resume', label: 'Resumes', description: 'Design and export tailored resumes.' },
-  { id: 'cv', label: 'CVs', description: 'Long-form curriculum vitae layouts.' },
-  { id: 'drafts', label: 'Drafts', description: 'Revisit saved work in progress.' },
-  { id: 'downloads', label: 'Downloads', description: 'Track generated PDF files.' },
-  { id: 'settings', label: 'Settings', description: 'Manage account and workspace.' },
-];
 
 const LANGUAGE_OPTIONS = [
   { value: 'en', label: 'English' },
@@ -234,6 +228,9 @@ function formatLanguageLabel(value?: string) {
 
 export function ResumeDashboard() {
   const { user, profile, refreshProfile } = useAuth();
+  const { copy } = useLocalization();
+  const dashboardCopy = copy.resumeDashboard;
+  const statuses = dashboardCopy.statuses;
   const [drafts, setDrafts] = useState<ResumeDraft[]>([]);
   const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
   const [form, setForm] = useState<DraftFormState>(() => {
@@ -260,7 +257,8 @@ export function ResumeDashboard() {
   const entitlements = profile?.entitlements;
   const freeDownloadsDepleted =
     entitlements?.plan === 'free' && (entitlements.remainingDownloads ?? 0) <= 0;
-  const activeMenu = DASHBOARD_MENU.find((item) => item.id === activeSection);
+  const navMenu = dashboardCopy.sectionLabels as { id: DashboardSection; label: string; description: string }[];
+  const activeMenu = navMenu.find((item) => item.id === activeSection);
   useEffect(() => {
     if (!user) return;
 
@@ -308,7 +306,7 @@ export function ResumeDashboard() {
         );
       } catch (error) {
         console.error(error);
-        setStatus('Unable to load templates from Firestore.');
+        setStatus(statuses.loadTemplatesError);
       }
     };
 
@@ -366,7 +364,7 @@ export function ResumeDashboard() {
       },
       (error) => {
         console.error('Failed to load drafts', error);
-        setStatus('Unable to load drafts right now.');
+        setStatus(statuses.loadDraftsError);
         setLoadingDrafts(false);
       }
     );
@@ -407,7 +405,7 @@ export function ResumeDashboard() {
       },
       (error) => {
         console.error('Failed to load downloads', error);
-        setStatus('Unable to load recent downloads.');
+        setStatus(statuses.loadDownloadsError);
         setLoadingDownloads(false);
       }
     );
@@ -467,7 +465,7 @@ export function ResumeDashboard() {
   const syncSubscription = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!user) {
-        setStatus('Sign in to manage your subscription.');
+        setStatus(statuses.signInRequired);
         return;
       }
       setSyncingSubscription(true);
@@ -475,11 +473,11 @@ export function ResumeDashboard() {
         await new Promise((resolve) => setTimeout(resolve, 350));
         await refreshProfile();
         if (!options?.silent) {
-          setStatus('Subscription data refreshed (demo mode).');
+          setStatus(statuses.subscriptionRefreshed);
         }
       } catch (error) {
         console.error('Demo subscription sync failed', error);
-        setStatus('Unable to refresh subscription details right now.');
+        setStatus(statuses.subscriptionRefreshFailed);
       } finally {
         setSyncingSubscription(false);
       }
@@ -489,16 +487,16 @@ export function ResumeDashboard() {
 
   const startCheckout = useCallback(async () => {
     if (!user) {
-      setStatus('Sign in to upgrade your subscription.');
+      setStatus(statuses.upgradeSignInRequired);
       return;
     }
     setStartingCheckout(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 350));
-      setStatus('Stripe billing runs in demo mode right now. Contact the team to enable live checkout.');
+      setStatus(statuses.checkoutDemo);
     } catch (error) {
       console.error('Demo checkout trigger failed', error);
-      setStatus('Unable to trigger the demo checkout flow.');
+      setStatus(statuses.checkoutFailed);
     } finally {
       setStartingCheckout(false);
     }
@@ -506,16 +504,16 @@ export function ResumeDashboard() {
 
   const openBillingPortal = useCallback(async () => {
     if (!user) {
-      setStatus('Sign in to manage your subscription.');
+      setStatus(statuses.billingSignInRequired);
       return;
     }
     setOpeningPortal(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 300));
-      setStatus('Billing portal access is disabled in the demo environment.');
+      setStatus(statuses.billingDisabled);
     } catch (error) {
       console.error('Demo billing portal error', error);
-      setStatus('Unable to open the demo billing portal.');
+      setStatus(statuses.billingError);
     } finally {
       setOpeningPortal(false);
     }
@@ -532,10 +530,10 @@ export function ResumeDashboard() {
     }
     if (upgradeStatus === 'success') {
       syncSubscription({ silent: true }).then(() => {
-        setStatus('Subscription upgraded successfully.');
+        setStatus(statuses.subscriptionUpgraded);
       });
     } else if (upgradeStatus === 'cancelled') {
-      setStatus('Subscription checkout cancelled.');
+      setStatus(statuses.checkoutCancelled);
     }
     params.delete('upgrade');
     const newQuery = params.toString();
@@ -565,7 +563,7 @@ export function ResumeDashboard() {
       const ref = doc(db, 'drafts', draftId);
       const snapshot = await getDoc(ref);
       if (!snapshot.exists()) {
-        setStatus('Draft not found.');
+        setStatus(statuses.draftNotFound);
         return;
       }
 
@@ -589,11 +587,11 @@ export function ResumeDashboard() {
         certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
       });
       setViewMode('edit');
-      setStatus('Draft loaded into the editor.');
+      setStatus(statuses.draftLoaded);
       setActiveSection('resume');
     } catch (error) {
       console.error(error);
-      setStatus('Unable to load draft.');
+      setStatus(statuses.draftLoadFailed);
     }
   };
 
@@ -654,7 +652,7 @@ export function ResumeDashboard() {
   const saveDraft = async () => {
     if (!user) return;
     if (!form.documentTitle.trim()) {
-      setStatus('Please provide a document title.');
+      setStatus(statuses.missingTitle);
       return;
     }
 
@@ -678,32 +676,32 @@ export function ResumeDashboard() {
 
       if (form.id) {
         await setDoc(doc(db, 'drafts', form.id), payload, { merge: true });
-        setStatus('Draft updated successfully.');
+        setStatus(statuses.draftUpdated);
       } else {
         const ref = await addDoc(collection(db, 'drafts'), {
           ...payload,
           createdAt: serverTimestamp(),
         });
         setForm((previous) => ({ ...previous, id: ref.id }));
-        setStatus('Draft created successfully.');
+        setStatus(statuses.draftCreated);
       }
     } catch (error) {
       console.error(error);
-      setStatus('Unable to save draft. Please try again.');
+      setStatus(statuses.draftSaveFailed);
     }
   };
 
   const generatePdf = async () => {
     if (!form.id) {
-      setStatus('Save your draft before generating a PDF.');
+      setStatus(statuses.saveBeforePdf);
       return;
     }
     if (!entitlements) {
-      setStatus('Missing entitlements data. Please reload the page.');
+      setStatus(statuses.missingEntitlements);
       return;
     }
     if (entitlements.remainingDownloads <= 0 && entitlements.plan === 'free') {
-      setStatus('You have reached the free download limit. Subscribe to continue or ask an admin to reset your allowance.');
+      setStatus(statuses.downloadLimitReached);
       return;
     }
 
@@ -754,10 +752,10 @@ export function ResumeDashboard() {
         });
         await refreshProfile();
       }
-      setStatus('PDF generated successfully.');
+      setStatus(statuses.pdfSuccess);
     } catch (error) {
       console.error(error);
-      setStatus('Failed to generate PDF.');
+      setStatus(statuses.pdfFailed);
     }
   };
 
@@ -771,7 +769,7 @@ export function ResumeDashboard() {
       id: undefined,
     });
     setViewMode('edit');
-    setStatus('Editor reset to template defaults.');
+    setStatus(statuses.editorReset);
   };
 
   const addExperience = () => setForm((previous) => ({ ...previous, workExperiences: [...previous.workExperiences, emptyExperience()] }));
@@ -833,9 +831,9 @@ export function ResumeDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flexWrap: 'wrap' }}>
               <CareerStudioLogo variant="inline" markSize={42} wordmarkStyle={{ fontSize: '1.05rem' }} />
               <div style={{ display: 'grid', gap: '0.2rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>Resume Studio workspace</span>
+                <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>{dashboardCopy.heroTitle}</span>
                 <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                  {profile?.email ?? user?.email ?? 'Signed in member'}
+                  {profile?.email ?? user?.email ?? dashboardCopy.signedInFallback}
                 </span>
               </div>
             </div>
@@ -860,7 +858,7 @@ export function ResumeDashboard() {
                         color: '#64748b',
                       }}
                     >
-                      Plan
+                      {dashboardCopy.planLabel}
                     </span>
                     <span style={{ fontWeight: 700, color: '#0f172a' }}>{entitlements.plan.toUpperCase()}</span>
                   </div>
@@ -885,7 +883,7 @@ export function ResumeDashboard() {
                         letterSpacing: '0.12em',
                       }}
                     >
-                      Downloads left
+                      {dashboardCopy.downloadsLeftLabel}
                     </span>
                     <span style={{ fontWeight: 700 }}>{entitlements.remainingDownloads}</span>
                   </div>
@@ -900,7 +898,7 @@ export function ResumeDashboard() {
                     fontWeight: 600,
                   }}
                 >
-                  Loading entitlements…
+                  {dashboardCopy.loadingEntitlements}
                 </div>
               )}
             </div>
@@ -915,7 +913,7 @@ export function ResumeDashboard() {
                 marginTop: '1rem',
               }}
             >
-              {DASHBOARD_MENU.map((item) => {
+              {navMenu.map((item) => {
                 const isActive = item.id === activeSection;
                 return (
                   <button
@@ -958,15 +956,13 @@ export function ResumeDashboard() {
                 }}
               >
                 <div>
-                  <h1 style={{ margin: 0, fontSize: '2rem' }}>Resume workspace</h1>
-                  <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                    Craft resumes with production-ready templates, edit every section, and export polished PDFs.
-                  </p>
+                  <h1 style={{ margin: 0, fontSize: '2rem' }}>{dashboardCopy.resumeHeading}</h1>
+                  <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{dashboardCopy.resumeCopy}</p>
                 </div>
                 {entitlements && (
                   <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                     <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#eef2ff', minWidth: '200px' }}>
-                      <strong>Plan</strong>
+                      <strong>{dashboardCopy.planLabel}</strong>
                       <div style={{ fontSize: '1.2rem' }}>{entitlements.plan.toUpperCase()}</div>
                     </div>
                     <div
@@ -979,7 +975,7 @@ export function ResumeDashboard() {
                         border: freeDownloadsDepleted ? '1px solid #fecaca' : 'none',
                       }}
                     >
-                      <strong>Downloads left</strong>
+                      <strong>{dashboardCopy.downloadsLeftLabel}</strong>
                       <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
                     </div>
                   </div>
@@ -994,7 +990,9 @@ export function ResumeDashboard() {
                       fontWeight: 600,
                     }}
                   >
-                    Upgrade to GM7 Pro or contact an administrator to reset your free download.
+                    <span>{dashboardCopy.downloadLimitExceeded}</span>
+                    <br />
+                    <span style={{ fontWeight: 500 }}>{dashboardCopy.downloadResetByAdmin}</span>
                   </div>
                 )}
                 {status && (
