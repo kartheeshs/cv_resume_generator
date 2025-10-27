@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { CareerStudioLogo } from '@/components/CareerStudioLogo';
 import styles from './login.module.css';
 
 type AuthMode = 'signin' | 'signup';
@@ -102,10 +103,12 @@ export default function LoginPage() {
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
-        <span className={styles.heroBadge}>
-          <span className={styles.brandMark}>CV</span>
-          Career Studio
-        </span>
+        <div className={styles.heroIdentity}>
+          <span className={styles.heroBadge}>
+            <CareerStudioLogo variant="inline" markSize={34} wordmarkStyle={{ fontSize: '0.95rem' }} />
+          </span>
+          <span className={styles.heroTagline}>Premium resume workspace</span>
+        </div>
         <h1 className={styles.heroTitle}>A polished resume platform that feels like your design team built it.</h1>
         <p className={styles.heroCopy}>
           Craft localized resumes and global CVs with modern templates, collaborative controls, and export-ready PDF

@@ -85,7 +85,7 @@ const pricingPlans: PricingPlan[] = [
   },
   {
     name: 'Growth',
-    price: '$18',
+    price: '¥999',
     frequency: '/seat /month',
     description: 'For talent teams publishing polished resumes every week.',
     features: [
@@ -124,10 +124,13 @@ export default function LandingPage() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <section className={styles.heroSection}>
-          <div className={styles.heroBreadcrumbs}>
-            <Link href="/">Career Studio GM7</Link>
-            <span aria-hidden>•</span>
-            <span>Resume editor website flow</span>
+          <div className={styles.heroMetaRow}>
+            <div className={styles.heroBreadcrumbs}>
+              <Link href="/">Career Studio GM7</Link>
+              <span aria-hidden>›</span>
+              <span>Resume editor website flow</span>
+            </div>
+            <span className={styles.heroContextPill}>Career Studio GM7</span>
           </div>
 
           <div className={styles.heroLayout}>

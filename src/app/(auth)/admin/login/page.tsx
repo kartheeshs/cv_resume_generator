@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { CareerStudioLogo } from '@/components/CareerStudioLogo';
 import styles from '../../login/login.module.css';
 
 export default function AdminLoginPage() {
@@ -47,7 +48,12 @@ export default function AdminLoginPage() {
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
-        <span className={styles.heroBadge}>Career Studio GM7</span>
+        <div className={styles.heroIdentity}>
+          <span className={styles.heroBadge}>
+            <CareerStudioLogo variant="inline" markSize={34} wordmarkStyle={{ fontSize: '0.95rem' }} />
+          </span>
+          <span className={styles.heroTagline}>Admin workspace</span>
+        </div>
         <h1 className={styles.heroTitle}>Secure admin access</h1>
         <p className={styles.heroCopy}>
           Monitor workspace activity, reset download allowances, and oversee subscriptions. Only approved administrators can

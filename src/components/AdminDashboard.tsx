@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { CareerStudioLogo } from './CareerStudioLogo';
 
 type AdminTab = 'overview' | 'users' | 'downloads' | 'subscriptions' | 'templates';
 
@@ -284,16 +285,16 @@ export function AdminDashboard() {
           position: 'sticky',
           top: 0,
           zIndex: 30,
-          background: 'rgba(248, 250, 252, 0.92)',
-          backdropFilter: 'blur(14px)',
-          borderBottom: '1px solid rgba(148, 163, 184, 0.3)',
+          background: 'rgba(248, 250, 252, 0.94)',
+          backdropFilter: 'blur(18px)',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.28)',
         }}
       >
         <div
           style={{
             maxWidth: '1200px',
             margin: '0 auto',
-            padding: '1.1rem 1.75rem',
+            padding: '1rem 1.75rem 1.15rem',
             display: 'grid',
             gap: '0.9rem',
           }}
@@ -303,56 +304,105 @@ export function AdminDashboard() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              flexWrap: 'wrap',
               gap: '1rem',
+              flexWrap: 'wrap',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <span
-                aria-hidden
-                style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '1.1rem',
-                  background: 'linear-gradient(135deg, rgba(14,165,233,0.18), rgba(79,70,229,0.2))',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#1d4ed8',
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                }}
-              >
-                GM
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <CareerStudioLogo variant="inline" markSize={38} />
               <div style={{ display: 'grid', lineHeight: 1.2 }}>
-                <span style={{ fontWeight: 700, letterSpacing: '0.01em', color: '#0f172a' }}>Career Studio GM7</span>
-                <span style={{ fontSize: '0.85rem', color: '#64748b', letterSpacing: '0.08em' }}>Admin Console</span>
+                <span style={{ fontWeight: 700, letterSpacing: '0.01em', color: '#0f172a' }}>Admin control center</span>
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  Monitor workspace health & manage entitlements
+                </span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => signOut()}
+            <div
               style={{
-                border: '1px solid rgba(37, 99, 235, 0.3)',
-                background: '#2563eb',
-                color: '#fff',
-                padding: '0.55rem 1.2rem',
-                borderRadius: '0.8rem',
-                fontWeight: 600,
-                boxShadow: '0 12px 28px -20px rgba(37, 99, 235, 0.45)',
-                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                flexWrap: 'wrap',
               }}
             >
-              Sign out
-            </button>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  background: '#f1f5f9',
+                  borderRadius: '0.9rem',
+                  padding: '0.45rem 0.85rem',
+                  border: '1px solid rgba(148, 163, 184, 0.35)',
+                }}
+              >
+                <svg
+                  aria-hidden
+                  width="18"
+                  height="18"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9.5 3.5a6 6 0 104.243 10.243l2.628 2.629a1 1 0 001.415-1.415l-2.629-2.628A6 6 0 009.5 3.5z"
+                    stroke="#475569"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <input
+                  type="search"
+                  placeholder="Search users or commands"
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    fontSize: '0.9rem',
+                    color: '#0f172a',
+                    minWidth: '180px',
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                style={{
+                  border: 'none',
+                  background: '#0ea5e9',
+                  color: '#fff',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: '0.9rem',
+                  fontWeight: 600,
+                  boxShadow: '0 16px 32px -24px rgba(14, 165, 233, 0.65)',
+                  cursor: 'pointer',
+                }}
+              >
+                Create report
+              </button>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                style={{
+                  border: '1px solid rgba(37, 99, 235, 0.3)',
+                  background: '#fff',
+                  color: '#2563eb',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Sign out
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'grid', gap: '0.35rem' }}>
+          <div style={{ display: 'grid', gap: '0.45rem' }}>
             <nav
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
+                gap: '0.65rem',
                 flexWrap: 'wrap',
               }}
             >
@@ -366,23 +416,32 @@ export function AdminDashboard() {
                     style={{
                       border: 'none',
                       background: 'transparent',
-                      padding: '0.75rem 1rem',
+                      color: isActive ? '#1d4ed8' : '#475569',
+                      padding: '0.6rem 0.85rem',
+                      borderRadius: '0.8rem',
                       fontWeight: 600,
-                      color: isActive ? '#0f172a' : '#64748b',
-                      borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
-                      borderRadius: '0.6rem 0.6rem 0 0',
+                      position: 'relative',
                       cursor: 'pointer',
-                      transition: 'color 0.2s ease, border-color 0.2s ease',
                     }}
                   >
                     {tab.label}
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: '0.75rem',
+                        right: '0.75rem',
+                        bottom: '-0.35rem',
+                        height: isActive ? '3px' : '1px',
+                        background: isActive ? '#2563eb' : 'rgba(148, 163, 184, 0.5)',
+                        borderRadius: '999px',
+                        transition: 'height 0.2s ease, background 0.2s ease',
+                      }}
+                    />
                   </button>
                 );
               })}
             </nav>
-            {activeTabDefinition && (
-              <span style={{ color: '#475569', fontSize: '0.85rem' }}>{activeTabDefinition.description}</span>
-            )}
+            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{activeTabDefinition?.description}</span>
           </div>
         </div>
       </header>
@@ -399,28 +458,102 @@ export function AdminDashboard() {
           <div
             style={{
               background: '#fff',
-              padding: '1.5rem',
-              borderRadius: '1rem',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 24px 60px -35px rgba(15, 23, 42, 0.22)',
+              padding: '1.75rem',
+              borderRadius: '1.25rem',
+              border: '1px solid rgba(226, 232, 240, 0.8)',
+              boxShadow: '0 26px 65px -40px rgba(15, 23, 42, 0.3)',
+              display: 'grid',
+              gap: '1.25rem',
             }}
           >
-            <h1 style={{ margin: '0 0 0.5rem', fontSize: '2rem', color: '#0f172a' }}>Admin control center</h1>
-            <p style={{ margin: 0, color: '#475569' }}>
-              Manage users, downloads, and subscriptions. Signed in as <strong>{profile?.email}</strong> with
-              <strong> {profile?.role}</strong> access.
-            </p>
-            <p style={{ margin: '0.5rem 0 0', color: '#6366f1', fontWeight: 500 }}>
-              Stripe automation is running in demo mode—actions here simulate the real billing flows.
-            </p>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                flexWrap: 'wrap',
+                fontSize: '0.9rem',
+                color: '#475569',
+              }}
+            >
+              <span
+                style={{
+                  background: 'rgba(37, 99, 235, 0.12)',
+                  color: '#1d4ed8',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.75rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  fontSize: '0.75rem',
+                }}
+              >
+                Career Studio GM7
+              </span>
+              <span aria-hidden style={{ opacity: 0.4 }}>•</span>
+              <span>Admin operations</span>
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  background: '#f1f5f9',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  fontWeight: 600,
+                  color: '#1e3a8a',
+                }}
+              >
+                Role: {profile?.role ?? 'user'}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gap: '0.6rem' }}>
+              <h1 style={{ margin: 0, fontSize: '2.1rem', color: '#0f172a' }}>Workspace performance overview</h1>
+              <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>
+                Signed in as <strong>{profile?.email ?? 'unknown'}</strong>. Track adoption, audit downloads, and keep
+                template catalogs aligned with hiring goals—all from a single command center.
+              </p>
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gap: '0.75rem',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              }}
+            >
+              {[{
+                label: 'Total users',
+                value: totalUsers.toLocaleString(),
+              },
+              {
+                label: 'Pro subscribers',
+                value: proUsers.toLocaleString(),
+              },
+              {
+                label: '30-day downloads',
+                value: downloadsLast30Days.toLocaleString(),
+              }].map((chip) => (
+                <div
+                  key={chip.label}
+                  style={{
+                    borderRadius: '0.9rem',
+                    padding: '0.85rem 1rem',
+                    background: '#f8fafc',
+                    border: '1px solid rgba(226, 232, 240, 0.7)',
+                    display: 'grid',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>{chip.value}</span>
+                  <span style={{ color: '#475569', fontWeight: 600 }}>{chip.label}</span>
+                </div>
+              ))}
+            </div>
             {status && (
               <div
                 style={{
-                  marginTop: '1rem',
                   padding: '0.85rem 1rem',
                   borderRadius: '0.9rem',
-                  background: 'rgba(59, 130, 246, 0.08)',
-                  color: '#1d4ed8',
+                  background: 'rgba(14, 165, 233, 0.12)',
+                  color: '#0369a1',
                   fontWeight: 500,
                 }}
               >

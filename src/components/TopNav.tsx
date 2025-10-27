@@ -3,60 +3,13 @@
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePathname } from 'next/navigation';
+import { CareerStudioLogo } from './CareerStudioLogo';
 
 const marketingLinks = [
   { href: '/#overview', label: 'Overview' },
   { href: '/#templates', label: 'Templates' },
   { href: '/#pricing', label: 'Pricing' },
 ];
-
-const LogoMark = () => (
-  <span
-    aria-hidden
-    style={{
-      width: '40px',
-      height: '40px',
-      borderRadius: '1.25rem',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background:
-        'linear-gradient(135deg, rgba(14,165,233,0.95) 0%, rgba(79,70,229,0.9) 55%, rgba(168,85,247,0.9) 100%)',
-      boxShadow: '0 14px 34px -26px rgba(79, 70, 229, 0.85)',
-    }}
-  >
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient id="careerStudioLogoStroke" x1="8" y1="10" x2="54" y2="54">
-          <stop offset="0%" stopColor="#e0f2fe" />
-          <stop offset="55%" stopColor="#eef2ff" />
-          <stop offset="100%" stopColor="#f5f3ff" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M44 18h-9c-8.284 0-15 6.716-15 15s6.716 15 15 15c5.201 0 9.777-2.644 12.5-6.673"
-        stroke="url(#careerStudioLogoStroke)"
-        strokeWidth="4.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M22 28l7 18 6.5-11 6.5 11L49 28"
-        stroke="#f8fafc"
-        strokeWidth="4.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="20" cy="20" r="4" fill="#bae6fd" />
-    </svg>
-  </span>
-);
 
 export function TopNav() {
   const pathname = usePathname();
@@ -101,13 +54,7 @@ export function TopNav() {
               textDecoration: 'none',
             }}
           >
-            <LogoMark />
-            <span style={{ display: 'grid', lineHeight: 1.1 }}>
-              <span style={{ fontSize: '1rem', fontWeight: 700, letterSpacing: '0.01em' }}>Career Studio</span>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1d4ed8', letterSpacing: '0.14em' }}>
-                GM7
-              </span>
-            </span>
+            <CareerStudioLogo />
           </Link>
           <nav
             aria-label="Primary"

@@ -36,6 +36,7 @@ import {
   resumeTemplateDefinitions,
   resumeTemplateMetadata,
 } from '@/templates/resume/definitions';
+import { CareerStudioLogo } from './CareerStudioLogo';
 
 interface DraftFormState extends ResumeDraftContent {
   id?: string;
@@ -829,29 +830,10 @@ export function ResumeDashboard() {
               gap: '1.25rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
-              <span
-                aria-hidden
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '1.2rem',
-                  background:
-                    'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(14,165,233,0.25))',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#1d4ed8',
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                }}
-              >
-                GM7
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flexWrap: 'wrap' }}>
+              <CareerStudioLogo variant="inline" markSize={42} wordmarkStyle={{ fontSize: '1.05rem' }} />
               <div style={{ display: 'grid', gap: '0.2rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>
-                  GM7 Resume Studio
-                </span>
+                <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>Resume Studio workspace</span>
                 <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
                   {profile?.email ?? user?.email ?? 'Signed in member'}
                 </span>
