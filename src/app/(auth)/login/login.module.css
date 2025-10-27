@@ -1,0 +1,200 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+  padding: clamp(3rem, 6vw, 6rem) clamp(1.5rem, 4vw, 5rem);
+  background: radial-gradient(circle at top left, #eef2ff 0%, rgba(238, 242, 255, 0) 45%),
+    linear-gradient(180deg, #0f172a 0%, #1e1b4b 35%, #020617 100%);
+  color: #0f172a;
+}
+
+.hero {
+  color: #f8fafc;
+  max-width: 460px;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  margin: 1.5rem 0 1rem;
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  line-height: 1.15;
+  color: #f8fafc;
+}
+
+.heroCopy {
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.cardWrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  width: min(440px, 100%);
+  background: #ffffff;
+  border-radius: 1.75rem;
+  padding: clamp(2rem, 4vw, 2.75rem);
+  box-shadow: 0 40px 90px -40px rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  display: grid;
+  gap: 1.75rem;
+}
+
+.cardHeader {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.cardHeader h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: #0f172a;
+}
+
+.cardHeader p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.form {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.inputGroup {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.inputGroup label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.input {
+  border-radius: 0.9rem;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+}
+
+.primaryButton,
+.secondaryButton,
+.ghostButton {
+  border-radius: 0.9rem;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0.9rem 1.25rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.primaryButton {
+  border: none;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  color: #fff;
+  box-shadow: 0 20px 40px -24px rgba(67, 56, 202, 0.75);
+}
+
+.primaryButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.secondaryButton {
+  width: 100%;
+  border: 1px solid rgba(67, 56, 202, 0.4);
+  background: #f8fafc;
+  color: #312e81;
+}
+
+.secondaryButton:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.ghostButton {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #4338ca;
+}
+
+.ghostButton:hover {
+  color: #312e81;
+}
+
+.divider {
+  text-align: center;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.status {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 0.9rem;
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 0.95rem;
+}
+
+.brandMark {
+  width: 42px;
+  height: 42px;
+  border-radius: 1rem;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, rgba(226, 232, 240, 0.25), rgba(59, 130, 246, 0.25));
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 3rem 1.25rem;
+    justify-items: center;
+  }
+
+  .hero {
+    text-align: center;
+  }
+
+  .brandRow {
+    justify-content: center;
+  }
+}
