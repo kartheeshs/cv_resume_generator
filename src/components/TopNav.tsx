@@ -9,6 +9,54 @@ const marketingLinks = [
   { href: '/#pricing', label: 'Pricing' },
 ];
 
+const LogoMark = () => (
+  <span
+    aria-hidden
+    style={{
+      width: '46px',
+      height: '46px',
+      borderRadius: '1.4rem',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background:
+        'linear-gradient(140deg, rgba(14,165,233,0.95) 0%, rgba(79,70,229,0.9) 55%, rgba(168,85,247,0.9) 100%)',
+      boxShadow: '0 18px 38px -26px rgba(79, 70, 229, 0.85)',
+    }}
+  >
+    <svg
+      width="28"
+      height="28"
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id="careerStudioLogoStroke" x1="8" y1="10" x2="54" y2="54">
+          <stop offset="0%" stopColor="#e0f2fe" />
+          <stop offset="55%" stopColor="#eef2ff" />
+          <stop offset="100%" stopColor="#f5f3ff" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M44 18h-9c-8.284 0-15 6.716-15 15s6.716 15 15 15c5.201 0 9.777-2.644 12.5-6.673"
+        stroke="url(#careerStudioLogoStroke)"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M22 28l7 18 6.5-11 6.5 11L49 28"
+        stroke="#f8fafc"
+        strokeWidth="4.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="20" cy="20" r="4" fill="#bae6fd" />
+    </svg>
+  </span>
+);
+
 export function TopNav() {
   const { user, profile, signOut } = useAuth();
 
@@ -46,26 +94,14 @@ export function TopNav() {
             textDecoration: 'none',
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '1.1rem',
-              display: 'grid',
-              placeItems: 'center',
-              background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(59, 130, 246, 0.35))',
-              color: '#0b3a7f',
-              fontWeight: 800,
-              letterSpacing: '0.05em',
-              fontSize: '0.95rem',
-            }}
-          >
-            GM7
-          </span>
+          <LogoMark />
           <span style={{ display: 'grid', lineHeight: 1.1 }}>
-            <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>Career Studio</span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e40af' }}>GM7</span>
+            <span style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.01em' }}>
+              Career Studio
+            </span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1d4ed8', letterSpacing: '0.12em' }}>
+              GM7
+            </span>
           </span>
         </Link>
         <nav

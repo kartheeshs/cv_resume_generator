@@ -25,6 +25,16 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/client';
 
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
+const isAdminEmail = (email: string | null | undefined) => {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+};
+
 type UserRole = 'admin' | 'user';
 
 export interface UserProfile {
@@ -74,6 +84,7 @@ const resolveActionCodeBaseUrl = () => {
 async function ensureUserProfile(user: User): Promise<UserProfile> {
   const ref = doc(db, 'users', user.uid);
   const snap = await getDoc(ref);
+  const shouldElevateToAdmin = isAdminEmail(user.email);
 
   if (snap.exists()) {
     const data = snap.data();
@@ -100,11 +111,17 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
               : undefined),
         }
       : undefined;
+    let resolvedRole: UserRole = (data.role as UserRole) ?? 'user';
+    if (shouldElevateToAdmin && resolvedRole !== 'admin') {
+      resolvedRole = 'admin';
+      await setDoc(ref, { role: resolvedRole }, { merge: true });
+    }
+
     return {
       uid: user.uid,
       email: user.email ?? '',
       displayName: user.displayName,
-      role: (data.role as UserRole) ?? 'user',
+      role: resolvedRole,
       createdAt: data.createdAt?.toDate?.(),
       entitlements: entitlementsData,
       stripeCustomerId: data.stripeCustomerId as string | undefined,
@@ -112,11 +129,12 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
     };
   }
 
+  const defaultRole: UserRole = shouldElevateToAdmin ? 'admin' : 'user';
   const profile: UserProfile = {
     uid: user.uid,
     email: user.email ?? '',
     displayName: user.displayName,
-    role: 'user',
+    role: defaultRole,
     createdAt: new Date(),
     entitlements: {
       plan: 'free',
