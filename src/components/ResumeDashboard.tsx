@@ -39,7 +39,6 @@ import {
   resumeTemplateDefinitions,
   resumeTemplateMetadata,
 } from '@/templates/resume/definitions';
-import { CareerStudioLogo } from './CareerStudioLogo';
 
 interface DraftFormState extends ResumeDraftContent {
   id?: string;
@@ -897,14 +896,11 @@ export function ResumeDashboard() {
               gap: '1.25rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flexWrap: 'wrap' }}>
-              <CareerStudioLogo variant="inline" markSize={42} wordmarkStyle={{ fontSize: '1.05rem' }} />
-              <div style={{ display: 'grid', gap: '0.2rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#0f172a' }}>{dashboardCopy.heroTitle}</span>
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                  {profile?.email ?? user?.email ?? dashboardCopy.signedInFallback}
-                </span>
-              </div>
+            <div style={{ display: 'grid', gap: '0.2rem' }}>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#0f172a' }}>{dashboardCopy.heroTitle}</span>
+              <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                {profile?.email ?? user?.email ?? dashboardCopy.signedInFallback}
+              </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
               {entitlements ? (
