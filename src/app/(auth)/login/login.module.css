@@ -10,11 +10,30 @@
   color: #0f172a;
 }
 
+.pageCondensed {
+  grid-template-columns: minmax(320px, 1fr);
+  gap: clamp(1.1rem, 3vw, 2rem);
+  padding: clamp(1.75rem, 4vw, 2.75rem) clamp(1rem, 2.5vw, 2.4rem);
+  align-items: flex-start;
+}
+
+@media (min-width: 768px) {
+  .pageCondensed {
+    grid-template-columns: minmax(320px, 360px) minmax(320px, 420px);
+    align-items: center;
+  }
+}
+
 .hero {
   color: #f8fafc;
   max-width: 420px;
   display: grid;
   gap: 1rem;
+}
+
+.pageCondensed .hero {
+  max-width: 360px;
+  gap: 0.8rem;
 }
 
 .heroIdentity {
@@ -75,6 +94,11 @@
   gap: 1rem;
 }
 
+.cardTight {
+  padding: clamp(0.95rem, 2.3vw, 1.35rem);
+  gap: 0.8rem;
+}
+
 .cardHeader {
   display: grid;
   gap: 0.6rem;
@@ -99,6 +123,10 @@
 
 .formCompact {
   gap: 0.7rem;
+}
+
+.formTight {
+  gap: 0.55rem;
 }
 
 .methodSwitch {
@@ -154,6 +182,10 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.inputCompact {
+  padding: 0.7rem 0.9rem;
+}
+
 .input:focus {
   outline: none;
   border-color: #4f46e5;
@@ -175,6 +207,11 @@
   background: linear-gradient(135deg, #4f46e5, #4338ca);
   color: #fff;
   box-shadow: 0 20px 40px -24px rgba(67, 56, 202, 0.75);
+}
+
+.primaryButtonCompact {
+  padding: 0.7rem 1rem;
+  font-size: 0.95rem;
 }
 
 .primaryButton:disabled {

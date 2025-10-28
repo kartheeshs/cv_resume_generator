@@ -182,6 +182,30 @@ type TranslationDefinition = {
       createdAt: string;
       actions: string;
     };
+    usersDetail: {
+      title: string;
+      subtitle: string;
+      selectedSubtitle: string;
+      noSelection: string;
+      sections: {
+        profile: string;
+        entitlements: string;
+        subscription: string;
+        actions: string;
+      };
+      labels: {
+        email: string;
+        role: string;
+        createdAt: string;
+        plan: string;
+        downloads: string;
+        tokens: string;
+        nextRefresh: string;
+        subscriptionStatus: string;
+        subscriptionPeriodEnd: string;
+        stripeCustomerId: string;
+      };
+    };
     buttons: {
       setUser: string;
       setAdmin: string;
@@ -195,6 +219,7 @@ type TranslationDefinition = {
       refreshStatusLoading: string;
       deleteUser: string;
       deleteUserLoading: string;
+      viewDetails: string;
     };
     statuses: {
       roleUpdated: string;
@@ -608,7 +633,7 @@ const translations: Record<Locale, TranslationDefinition> = {
       duplicateTemplate: 'Duplicate template',
       duplicateTemplateLoading: 'Duplicating…',
       usersHeading: 'Member directory',
-      usersCopy: 'Promote admins, adjust allowances, grant tokens, or reset download limits.',
+      usersCopy: 'Promote admins, adjust allowances, and open the detail view for full profile controls.',
       usersEmpty: 'No users found.',
       usersColumns: {
         email: 'Email',
@@ -620,6 +645,30 @@ const translations: Record<Locale, TranslationDefinition> = {
         subscriptionStatus: 'Subscription status',
         createdAt: 'Created',
         actions: 'Actions',
+      },
+      usersDetail: {
+        title: 'User details',
+        subtitle: 'Select a member to inspect their profile and advanced controls.',
+        selectedSubtitle: 'Managing {{email}}',
+        noSelection: 'Select a member above to view profile details.',
+        sections: {
+          profile: 'Profile',
+          entitlements: 'Entitlements',
+          subscription: 'Subscription',
+          actions: 'Advanced actions',
+        },
+        labels: {
+          email: 'Email',
+          role: 'Role',
+          createdAt: 'Created',
+          plan: 'Plan',
+          downloads: 'Downloads left',
+          tokens: 'Tokens',
+          nextRefresh: 'Next refresh',
+          subscriptionStatus: 'Subscription status',
+          subscriptionPeriodEnd: 'Period end',
+          stripeCustomerId: 'Stripe customer ID',
+        },
       },
       buttons: {
         setUser: 'Set user',
@@ -634,6 +683,7 @@ const translations: Record<Locale, TranslationDefinition> = {
         refreshStatusLoading: 'Syncing…',
         deleteUser: 'Delete user',
         deleteUserLoading: 'Removing…',
+        viewDetails: 'View details',
       },
       statuses: {
         roleUpdated: 'Role updated to {{role}} successfully.',
@@ -1055,7 +1105,7 @@ const translations: Record<Locale, TranslationDefinition> = {
       duplicateTemplate: 'テンプレートを複製',
       duplicateTemplateLoading: '複製中…',
       usersHeading: 'メンバーディレクトリ',
-      usersCopy: '管理者への昇格、権限調整、トークン付与、ダウンロード上限のリセットを行います。',
+      usersCopy: '管理者昇格や権限調整、詳細ビューでプロフィールと操作を確認します。',
       usersEmpty: 'ユーザーが見つかりません。',
       usersColumns: {
         email: 'メールアドレス',
@@ -1067,6 +1117,30 @@ const translations: Record<Locale, TranslationDefinition> = {
         subscriptionStatus: 'サブスクリプション状態',
         createdAt: '作成日時',
         actions: '操作',
+      },
+      usersDetail: {
+        title: 'ユーザー詳細',
+        subtitle: '上のリストからメンバーを選ぶとプロフィールと高度な操作を表示します。',
+        selectedSubtitle: '{{email}} を管理中',
+        noSelection: 'ユーザーを選択すると詳細が表示されます。',
+        sections: {
+          profile: 'プロフィール',
+          entitlements: '権限と上限',
+          subscription: 'サブスクリプション',
+          actions: '高度な操作',
+        },
+        labels: {
+          email: 'メールアドレス',
+          role: 'ロール',
+          createdAt: '作成日時',
+          plan: 'プラン',
+          downloads: '残りダウンロード',
+          tokens: 'トークン',
+          nextRefresh: '次回リフレッシュ',
+          subscriptionStatus: 'サブスクリプション状態',
+          subscriptionPeriodEnd: '期間終了',
+          stripeCustomerId: 'Stripe顧客ID',
+        },
       },
       buttons: {
         setUser: 'ユーザーに変更',
@@ -1081,6 +1155,7 @@ const translations: Record<Locale, TranslationDefinition> = {
         refreshStatusLoading: '同期中…',
         deleteUser: 'ユーザーを削除',
         deleteUserLoading: '削除中…',
+        viewDetails: '詳細を表示',
       },
       statuses: {
         roleUpdated: 'ロールを{{role}}に更新しました。',

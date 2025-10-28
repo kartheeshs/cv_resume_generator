@@ -78,6 +78,7 @@ export function AdminDashboard() {
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [syncingUserId, setSyncingUserId] = useState<string | null>(null);
   const [adjustingUserId, setAdjustingUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
@@ -183,6 +184,21 @@ export function AdminDashboard() {
     loadTemplates();
   }, []);
 
+  useEffect(() => {
+    if (users.length === 0) {
+      if (selectedUserId !== null) {
+        setSelectedUserId(null);
+      }
+      return;
+    }
+
+    if (selectedUserId && users.some((userRow) => userRow.id === selectedUserId)) {
+      return;
+    }
+
+    setSelectedUserId(users[0].id);
+  }, [users, selectedUserId]);
+
   const userMap = useMemo(() => {
     const map = new Map<string, UserRow>();
     users.forEach((userRow) => {
@@ -214,8 +230,13 @@ export function AdminDashboard() {
   const downloadsTab = tabs.find((tab) => tab.id === 'downloads');
   const subscriptionsTab = tabs.find((tab) => tab.id === 'subscriptions');
   const templatesTab = tabs.find((tab) => tab.id === 'templates');
-  const userGridTemplate =
-    'minmax(220px, 2.4fr) minmax(110px, 1fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(120px, 0.9fr) minmax(170px, 1.3fr) minmax(150px, 1.1fr) minmax(150px, 1.1fr) minmax(220px, 1.6fr)';
+  const selectedUser = selectedUserId ? userMap.get(selectedUserId) ?? null : null;
+  const usersDetailCopy = adminCopy.usersDetail;
+  const detailSubtitle = selectedUser
+    ? formatMessage(usersDetailCopy.selectedSubtitle, { email: selectedUser.email })
+    : usersDetailCopy.subtitle;
+  const detailLabels = usersDetailCopy.labels;
+  const detailSections = usersDetailCopy.sections;
   const actionButtonBase = {
     padding: '0.4rem 0.75rem',
     borderRadius: '0.65rem',
@@ -225,6 +246,25 @@ export function AdminDashboard() {
     background: '#f8fafc',
     color: '#0f172a',
     cursor: 'pointer',
+  } as const;
+  const tableActionButton = {
+    ...actionButtonBase,
+    padding: '0.35rem 0.65rem',
+    fontSize: '0.78rem',
+  } as const;
+  const detailLabelStyle = {
+    fontSize: '0.72rem',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: '#94a3b8',
+    fontWeight: 700,
+    marginBottom: '0.15rem',
+  } as const;
+  const detailValueStyle = {
+    margin: 0,
+    fontWeight: 600,
+    color: '#0f172a',
+    wordBreak: 'break-word',
   } as const;
 
   const updateRole = async (userId: string, nextRole: 'admin' | 'user') => {
@@ -790,238 +830,367 @@ export function AdminDashboard() {
           {users.length === 0 ? (
             <p style={{ color: '#64748b' }}>{adminCopy.usersEmpty}</p>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ display: 'grid', gap: '1.5rem' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0', color: '#0f172a' }}>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.email}</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.plan}</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.remainingDownloads}</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.tokens}</th>
+                      <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>{adminCopy.usersColumns.actions}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((userRow) => {
+                      const planLabel = (userRow.plan ?? 'free').toUpperCase();
+                      const downloadsRemaining = userRow.remainingDownloads ?? 0;
+                      const tokens = userRow.tokens ?? 0;
+                      const isSelected = selectedUserId === userRow.id;
+                      return (
+                        <tr
+                          key={userRow.id}
+                          style={{
+                            borderBottom: '1px solid #f1f5f9',
+                            background: isSelected ? '#eef2ff' : 'transparent',
+                          }}
+                        >
+                          <td style={{ padding: '0.85rem 0.5rem' }}>
+                            <div style={{ display: 'grid', gap: '0.25rem' }}>
+                              <span style={{ fontWeight: 600, color: '#0f172a', wordBreak: 'break-word' }}>
+                                {userRow.email}
+                              </span>
+                              <span
+                                style={{
+                                  ...detailLabelStyle,
+                                  marginBottom: 0,
+                                  color: '#64748b',
+                                }}
+                              >
+                                {adminCopy.usersColumns.role}: {userRow.role}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.85rem 0.5rem' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '0.3rem 0.7rem',
+                                borderRadius: '999px',
+                                background: userRow.plan === 'pro' ? '#1d4ed8' : '#f1f5f9',
+                                color: userRow.plan === 'pro' ? '#fff' : '#1f2937',
+                                fontWeight: 600,
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              {planLabel}
+                            </span>
+                          </td>
+                          <td
+                            style={{
+                              padding: '0.85rem 0.5rem',
+                              fontWeight: 600,
+                              color: downloadsRemaining <= 1 ? '#b91c1c' : '#0f172a',
+                            }}
+                          >
+                            {downloadsRemaining}
+                          </td>
+                          <td
+                            style={{
+                              padding: '0.85rem 0.5rem',
+                              fontWeight: 600,
+                              color: tokens > 0 ? '#0f172a' : '#94a3b8',
+                            }}
+                          >
+                            {tokens}
+                          </td>
+                          <td style={{ padding: '0.85rem 0.5rem' }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                justifyContent: 'flex-end',
+                                gap: '0.35rem',
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUserId(userRow.id)}
+                                style={{
+                                  ...tableActionButton,
+                                  border: isSelected ? '1px solid #4338ca' : tableActionButton.border,
+                                  background: isSelected ? '#4338ca' : '#f8fafc',
+                                  color: isSelected ? '#fff' : '#0f172a',
+                                }}
+                              >
+                                {adminCopy.buttons.viewDetails}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => resetDownloads(userRow)}
+                                disabled={resettingUserId === userRow.id}
+                                style={{
+                                  ...tableActionButton,
+                                  border: '1px solid #0ea5e9',
+                                  background: resettingUserId === userRow.id ? '#bae6fd' : '#e0f2fe',
+                                  color: '#0c4a6e',
+                                  opacity: resettingUserId === userRow.id ? 0.85 : 1,
+                                }}
+                              >
+                                {resettingUserId === userRow.id
+                                  ? adminCopy.buttons.resetDownloadsLoading
+                                  : adminCopy.buttons.resetDownloads}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteUserAccount(userRow)}
+                                disabled={deletingUserId === userRow.id}
+                                style={{
+                                  ...tableActionButton,
+                                  border: '1px solid #ef4444',
+                                  background: deletingUserId === userRow.id ? '#fee2e2' : '#ef4444',
+                                  color: deletingUserId === userRow.id ? '#991b1b' : '#fff',
+                                  opacity: deletingUserId === userRow.id ? 0.9 : 1,
+                                }}
+                              >
+                                {deletingUserId === userRow.id
+                                  ? adminCopy.buttons.deleteUserLoading
+                                  : adminCopy.buttons.deleteUser}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               <div
                 style={{
-                  minWidth: '1100px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '1rem',
+                  background: '#fff',
+                  padding: '1.5rem',
                   display: 'grid',
-                  gap: '0.75rem',
+                  gap: '1.25rem',
                 }}
               >
                 <div
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: userGridTemplate,
-                    gap: '0.5rem',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '0.85rem',
-                    background: '#e2e8f0',
-                    color: '#0f172a',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
                   }}
                 >
-                  <span>{adminCopy.usersColumns.email}</span>
-                  <span>{adminCopy.usersColumns.role}</span>
-                  <span>{adminCopy.usersColumns.plan}</span>
-                  <span>{adminCopy.usersColumns.remainingDownloads}</span>
-                  <span>{adminCopy.usersColumns.tokens}</span>
-                  <span>{adminCopy.usersColumns.nextRefresh}</span>
-                  <span>{adminCopy.usersColumns.subscriptionStatus}</span>
-                  <span>{adminCopy.usersColumns.createdAt}</span>
-                  <span style={{ textAlign: 'right' }}>{adminCopy.usersColumns.actions}</span>
-                </div>
-                {users.map((userRow) => {
-                  const planLabel = (userRow.plan ?? 'free').toUpperCase();
-                  const downloadsRemaining = userRow.remainingDownloads ?? 0;
-                  const tokens = userRow.tokens ?? 0;
-                  const isPro = userRow.plan === 'pro';
-                  const nextRefreshLabel = formatDateTime(userRow.nextRefreshAt ?? undefined);
-                  const createdAtLabel = formatDate(userRow.createdAt);
-                  return (
-                    <div
-                      key={userRow.id}
+                  <div style={{ display: 'grid', gap: '0.35rem' }}>
+                    <h3 style={{ margin: 0, color: '#0f172a' }}>{usersDetailCopy.title}</h3>
+                    <p style={{ margin: 0, color: '#475569' }}>{detailSubtitle}</p>
+                  </div>
+                  {selectedUser && (
+                    <span
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: userGridTemplate,
-                        gap: '0.5rem',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        padding: '1rem 1.1rem',
-                        borderRadius: '1rem',
-                        border: '1px solid #e2e8f0',
-                        background: '#fff',
-                        boxShadow: '0 20px 48px -36px rgba(15, 23, 42, 0.28)',
+                        justifyContent: 'center',
+                        padding: '0.35rem 0.8rem',
+                        borderRadius: '999px',
+                        background: selectedUser.plan === 'pro' ? '#1d4ed8' : '#f1f5f9',
+                        color: selectedUser.plan === 'pro' ? '#fff' : '#1f2937',
+                        fontWeight: 600,
+                        letterSpacing: '0.04em',
                       }}
                     >
-                      <span style={{ fontWeight: 600, color: '#0f172a', wordBreak: 'break-word' }}>{userRow.email}</span>
-                      <span style={{ color: '#475569' }}>{userRow.role}</span>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '0.35rem 0.75rem',
-                          borderRadius: '999px',
-                          background: isPro ? '#1d4ed8' : '#f1f5f9',
-                          color: isPro ? '#fff' : '#1f2937',
-                          fontWeight: 600,
-                          letterSpacing: '0.04em',
-                        }}
-                      >
-                        {planLabel}
-                      </span>
-                      <span
-                        style={{
-                          color: downloadsRemaining <= 1 ? '#b91c1c' : '#0f172a',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {downloadsRemaining}
-                      </span>
-                      <span
-                        style={{
-                          color: tokens > 0 ? '#0f172a' : '#94a3b8',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {tokens}
-                      </span>
-                      <span style={{ color: '#475569' }}>{nextRefreshLabel}</span>
-                      <span style={{ color: '#475569' }}>{userRow.subscriptionStatus ?? '—'}</span>
-                      <span style={{ color: '#475569' }}>{createdAtLabel}</span>
-                      <div style={{ display: 'grid', gap: '0.45rem', justifyItems: 'flex-end' }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '0.4rem',
-                            justifyContent: 'flex-end',
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => updateRole(userRow.id, 'user')}
-                            style={{
-                              ...actionButtonBase,
-                              border: '1px solid rgba(148, 163, 184, 0.6)',
-                            }}
-                          >
-                            {adminCopy.buttons.setUser}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateRole(userRow.id, 'admin')}
-                            style={{
-                              ...actionButtonBase,
-                              background: '#1d4ed8',
-                              border: '1px solid #1d4ed8',
-                              color: '#fff',
-                            }}
-                          >
-                            {adminCopy.buttons.setAdmin}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPlan(userRow.id, userRow.plan === 'pro' ? 'free' : 'pro')}
-                            style={{
-                              ...actionButtonBase,
-                              border: '1px solid rgba(37, 99, 235, 0.35)',
-                              background: userRow.plan === 'pro' ? '#eef2ff' : '#2563eb',
-                              color: userRow.plan === 'pro' ? '#1e3a8a' : '#fff',
-                            }}
-                          >
-                            {userRow.plan === 'pro'
-                              ? adminCopy.buttons.setPlanToFree
-                              : adminCopy.buttons.setPlanToPro}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => syncSubscription(userRow.id)}
-                            disabled={syncingUserId === userRow.id}
-                            style={{
-                              ...actionButtonBase,
-                              border: '1px solid #2563eb',
-                              background: syncingUserId === userRow.id ? '#e0f2fe' : '#2563eb',
-                              color: syncingUserId === userRow.id ? '#1e40af' : '#fff',
-                              opacity: syncingUserId === userRow.id ? 0.85 : 1,
-                            }}
-                          >
-                            {syncingUserId === userRow.id
-                              ? adminCopy.buttons.refreshStatusLoading
-                              : adminCopy.buttons.refreshStatus}
-                          </button>
-                        </div>
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '0.4rem',
-                            justifyContent: 'flex-end',
-                          }}
-                        >
-                          {isPro && (
-                            <button
-                              type="button"
-                              onClick={() => adjustDownloads(userRow.id, 10)}
-                              disabled={adjustingUserId === userRow.id}
-                              style={{
-                                ...actionButtonBase,
-                                border: '1px solid #16a34a',
-                                background: adjustingUserId === userRow.id ? '#dcfce7' : '#22c55e',
-                                color: adjustingUserId === userRow.id ? '#166534' : '#fff',
-                                opacity: adjustingUserId === userRow.id ? 0.85 : 1,
-                              }}
-                            >
-                              {adjustingUserId === userRow.id
-                                ? `${adminCopy.buttons.addDownloads}…`
-                                : adminCopy.buttons.addDownloads}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => grantTokens(userRow.id, 5)}
-                            disabled={grantingTokensId === userRow.id}
-                            style={{
-                              ...actionButtonBase,
-                              border: '1px solid #a855f7',
-                              background: grantingTokensId === userRow.id ? '#ede9fe' : '#a855f7',
-                              color: grantingTokensId === userRow.id ? '#6b21a8' : '#fff',
-                              opacity: grantingTokensId === userRow.id ? 0.85 : 1,
-                            }}
-                          >
-                            {grantingTokensId === userRow.id
-                              ? `${adminCopy.buttons.addTokens}…`
-                              : adminCopy.buttons.addTokens}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => resetDownloads(userRow)}
-                            disabled={resettingUserId === userRow.id}
-                            style={{
-                              ...actionButtonBase,
-                              border: '1px solid #0ea5e9',
-                              background: resettingUserId === userRow.id ? '#bae6fd' : '#38bdf8',
-                              color: resettingUserId === userRow.id ? '#0c4a6e' : '#0f172a',
-                              opacity: resettingUserId === userRow.id ? 0.85 : 1,
-                            }}
-                          >
-                            {resettingUserId === userRow.id
-                              ? adminCopy.buttons.resetDownloadsLoading
-                              : adminCopy.buttons.resetDownloads}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteUserAccount(userRow)}
-                            disabled={deletingUserId === userRow.id}
-                            style={{
-                              ...actionButtonBase,
-                              border: '1px solid #ef4444',
-                              background: deletingUserId === userRow.id ? '#fee2e2' : '#ef4444',
-                              color: deletingUserId === userRow.id ? '#991b1b' : '#fff',
-                              opacity: deletingUserId === userRow.id ? 0.9 : 1,
-                            }}
-                          >
-                            {deletingUserId === userRow.id
-                              ? adminCopy.buttons.deleteUserLoading
-                              : adminCopy.buttons.deleteUser}
-                          </button>
-                        </div>
+                      {(selectedUser.plan ?? 'free').toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                {!selectedUser ? (
+                  <p style={{ margin: 0, color: '#64748b' }}>{usersDetailCopy.noSelection}</p>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: '1.25rem',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      }}
+                    >
+                      <div style={{ display: 'grid', gap: '0.75rem' }}>
+                        <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.profile}</h4>
+                        <dl style={{ margin: 0, display: 'grid', gap: '0.65rem' }}>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.email}</div>
+                            <p style={detailValueStyle}>{selectedUser.email}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.role}</div>
+                            <p style={detailValueStyle}>{selectedUser.role}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.createdAt}</div>
+                            <p style={detailValueStyle}>{formatDate(selectedUser.createdAt)}</p>
+                          </div>
+                        </dl>
+                      </div>
+                      <div style={{ display: 'grid', gap: '0.75rem' }}>
+                        <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.entitlements}</h4>
+                        <dl style={{ margin: 0, display: 'grid', gap: '0.65rem' }}>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.plan}</div>
+                            <p style={detailValueStyle}>{(selectedUser.plan ?? 'free').toUpperCase()}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.downloads}</div>
+                            <p style={detailValueStyle}>{selectedUser.remainingDownloads ?? 0}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.tokens}</div>
+                            <p style={detailValueStyle}>{selectedUser.tokens ?? 0}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.nextRefresh}</div>
+                            <p style={detailValueStyle}>{formatDateTime(selectedUser.nextRefreshAt ?? undefined)}</p>
+                          </div>
+                        </dl>
                       </div>
                     </div>
-                  );
-                })}
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.subscription}</h4>
+                      <dl
+                        style={{
+                          margin: 0,
+                          display: 'grid',
+                          gap: '0.65rem',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                        }}
+                      >
+                        <div>
+                          <div style={detailLabelStyle}>{detailLabels.subscriptionStatus}</div>
+                          <p style={detailValueStyle}>{selectedUser.subscriptionStatus ?? '—'}</p>
+                        </div>
+                        <div>
+                          <div style={detailLabelStyle}>{detailLabels.subscriptionPeriodEnd}</div>
+                          <p style={detailValueStyle}>{formatDate(selectedUser.subscriptionPeriodEnd)}</p>
+                        </div>
+                        <div>
+                          <div style={detailLabelStyle}>{detailLabels.stripeCustomerId}</div>
+                          <p style={detailValueStyle}>{selectedUser.stripeCustomerId ?? '—'}</p>
+                        </div>
+                      </dl>
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.actions}</h4>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '0.45rem',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => updateRole(selectedUser.id, 'user')}
+                          disabled={selectedUser.role === 'user'}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid rgba(148, 163, 184, 0.6)',
+                            opacity: selectedUser.role === 'user' ? 0.65 : 1,
+                            cursor: selectedUser.role === 'user' ? 'default' : 'pointer',
+                          }}
+                        >
+                          {adminCopy.buttons.setUser}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateRole(selectedUser.id, 'admin')}
+                          disabled={selectedUser.role === 'admin'}
+                          style={{
+                            ...actionButtonBase,
+                            background: '#1d4ed8',
+                            border: '1px solid #1d4ed8',
+                            color: '#fff',
+                            opacity: selectedUser.role === 'admin' ? 0.65 : 1,
+                            cursor: selectedUser.role === 'admin' ? 'default' : 'pointer',
+                          }}
+                        >
+                          {adminCopy.buttons.setAdmin}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPlan(selectedUser.id, selectedUser.plan === 'pro' ? 'free' : 'pro')}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid rgba(37, 99, 235, 0.35)',
+                            background: selectedUser.plan === 'pro' ? '#eef2ff' : '#2563eb',
+                            color: selectedUser.plan === 'pro' ? '#1e3a8a' : '#fff',
+                          }}
+                        >
+                          {selectedUser.plan === 'pro'
+                            ? adminCopy.buttons.setPlanToFree
+                            : adminCopy.buttons.setPlanToPro}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => syncSubscription(selectedUser.id)}
+                          disabled={syncingUserId === selectedUser.id}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid #2563eb',
+                            background: syncingUserId === selectedUser.id ? '#e0f2fe' : '#2563eb',
+                            color: syncingUserId === selectedUser.id ? '#1e40af' : '#fff',
+                            opacity: syncingUserId === selectedUser.id ? 0.85 : 1,
+                          }}
+                        >
+                          {syncingUserId === selectedUser.id
+                            ? adminCopy.buttons.refreshStatusLoading
+                            : adminCopy.buttons.refreshStatus}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => adjustDownloads(selectedUser.id, 10)}
+                          disabled={selectedUser.plan !== 'pro' || adjustingUserId === selectedUser.id}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid #16a34a',
+                            background: adjustingUserId === selectedUser.id ? '#dcfce7' : '#22c55e',
+                            color: adjustingUserId === selectedUser.id ? '#166534' : '#fff',
+                            opacity:
+                              selectedUser.plan !== 'pro'
+                                ? 0.45
+                                : adjustingUserId === selectedUser.id
+                                ? 0.85
+                                : 1,
+                            cursor: selectedUser.plan !== 'pro' ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {adjustingUserId === selectedUser.id
+                            ? `${adminCopy.buttons.addDownloads}…`
+                            : adminCopy.buttons.addDownloads}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => grantTokens(selectedUser.id, 5)}
+                          disabled={grantingTokensId === selectedUser.id}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid #a855f7',
+                            background: grantingTokensId === selectedUser.id ? '#ede9fe' : '#a855f7',
+                            color: grantingTokensId === selectedUser.id ? '#6b21a8' : '#fff',
+                            opacity: grantingTokensId === selectedUser.id ? 0.85 : 1,
+                          }}
+                        >
+                          {grantingTokensId === selectedUser.id
+                            ? `${adminCopy.buttons.addTokens}…`
+                            : adminCopy.buttons.addTokens}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

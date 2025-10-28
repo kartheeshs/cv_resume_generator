@@ -49,7 +49,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${styles.pageCondensed}`}>
       <div className={styles.hero}>
         <div className={styles.heroIdentity}>
           <span className={styles.heroBadge}>
@@ -68,13 +68,13 @@ export default function AdminLoginPage() {
       </div>
 
       <div className={styles.cardWrapper}>
-        <main className={`${styles.card} ${styles.cardCompact}`}>
+        <main className={`${styles.card} ${styles.cardCompact} ${styles.cardTight}`}>
           <header className={styles.cardHeader}>
             <h1>{adminCopy.cardTitle}</h1>
             <p>{adminCopy.cardCopy}</p>
           </header>
 
-          <form onSubmit={handleSubmit} className={`${styles.form} ${styles.formCompact}`}>
+          <form onSubmit={handleSubmit} className={`${styles.form} ${styles.formCompact} ${styles.formTight}`}>
             <div className={styles.inputGroup}>
               <label htmlFor="admin-email">{adminCopy.labels.email}</label>
               <input
@@ -84,7 +84,7 @@ export default function AdminLoginPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder={adminCopy.placeholders.email}
-                className={styles.input}
+                className={`${styles.input} ${styles.inputCompact}`}
                 autoComplete="email"
               />
             </div>
@@ -97,12 +97,16 @@ export default function AdminLoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder={adminCopy.placeholders.password}
-                className={styles.input}
+                className={`${styles.input} ${styles.inputCompact}`}
                 minLength={8}
                 autoComplete={user ? 'current-password' : 'new-password'}
               />
             </div>
-            <button type="submit" disabled={loading} className={styles.primaryButton}>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`${styles.primaryButton} ${styles.primaryButtonCompact}`}
+            >
               {loading ? adminCopy.submitLoading : adminCopy.submitIdle}
             </button>
           </form>

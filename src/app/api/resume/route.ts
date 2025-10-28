@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { renderToStream } from '@react-pdf/renderer';
-import { Readable } from 'stream';
+import { renderToBuffer } from '@react-pdf/renderer';
 import { ResumeDraftContent } from '@/types/resume';
 import { renderResumePdf } from '@/templates/resume/pdf';
 
 export const runtime = 'nodejs';
-
-function nodeStreamToWebReadable(stream: Readable) {
-  return new ReadableStream({
-    start(controller) {
-      stream.on('data', (chunk) => controller.enqueue(chunk));
-      stream.on('end', () => controller.close());
-      stream.on('error', (error) => controller.error(error));
-    },
-  });
-}
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -31,9 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   const document = renderResumePdf(templateId, content);
-  const documentStream = await renderToStream(document);
-
-  const readable = nodeStreamToWebReadable(documentStream as unknown as Readable);
+  const pdfBuffer = await renderToBuffer(document);
 
   const baseTitle = (content.documentTitle || 'resume').trim() || 'resume';
 
@@ -53,7 +40,7 @@ export async function POST(request: NextRequest) {
   const fallbackFilename = asciiFallback || 'resume';
   const encodedFilename = encodeRFC5987ValueChars(`${baseTitle}.pdf`);
 
-  return new NextResponse(readable, {
+  return new NextResponse(pdfBuffer, {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition':
