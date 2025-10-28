@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Timestamp,
@@ -13,6 +14,7 @@ import {
   orderBy,
   limit,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -20,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { formatMessage, useLocalization } from '@/context/LocalizationContext';
 import {
   CertificationEntry,
   EducationEntry,
@@ -203,13 +206,6 @@ const TEMPLATE_THUMBNAIL_HEIGHT = 1120;
 const TEMPLATE_THUMBNAIL_SCALE = 0.23;
 type DashboardSection = 'resume' | 'cv' | 'drafts' | 'downloads' | 'settings';
 
-const DASHBOARD_MENU: { id: DashboardSection; label: string; description: string }[] = [
-  { id: 'resume', label: 'Resumes', description: 'Design and export tailored resumes.' },
-  { id: 'cv', label: 'CVs', description: 'Long-form curriculum vitae layouts.' },
-  { id: 'drafts', label: 'Drafts', description: 'Revisit saved work in progress.' },
-  { id: 'downloads', label: 'Downloads', description: 'Track generated PDF files.' },
-  { id: 'settings', label: 'Settings', description: 'Manage account and workspace.' },
-];
 
 const LANGUAGE_OPTIONS = [
   { value: 'en', label: 'English' },
@@ -233,6 +229,9 @@ function formatLanguageLabel(value?: string) {
 
 export function ResumeDashboard() {
   const { user, profile, refreshProfile } = useAuth();
+  const { copy } = useLocalization();
+  const dashboardCopy = copy.resumeDashboard;
+  const statuses = dashboardCopy.statuses;
   const [drafts, setDrafts] = useState<ResumeDraft[]>([]);
   const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
   const [form, setForm] = useState<DraftFormState>(() => {
@@ -255,8 +254,15 @@ export function ResumeDashboard() {
   const [startingCheckout, setStartingCheckout] = useState(false);
   const [syncingSubscription, setSyncingSubscription] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [redeemingToken, setRedeemingToken] = useState(false);
 
   const entitlements = profile?.entitlements;
+  const downloadsDepleted = Boolean(entitlements) && (entitlements?.remainingDownloads ?? 0) <= 0;
+  const tokensAvailable = entitlements?.tokens ?? 0;
+  const nextRefreshAt = entitlements?.nextRefreshAt ?? null;
+  const nextRefreshDisplay = nextRefreshAt ? nextRefreshAt.toLocaleString() : '—';
+  const navMenu = dashboardCopy.sectionLabels as { id: DashboardSection; label: string; description: string }[];
+  const activeMenu = navMenu.find((item) => item.id === activeSection);
   useEffect(() => {
     if (!user) return;
 
@@ -304,7 +310,7 @@ export function ResumeDashboard() {
         );
       } catch (error) {
         console.error(error);
-        setStatus('Unable to load templates from Firestore.');
+        setStatus(statuses.loadTemplatesError);
       }
     };
 
@@ -312,7 +318,12 @@ export function ResumeDashboard() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setDrafts([]);
+      setLoadingDrafts(false);
+      return;
+    }
+    setLoadingDrafts(true);
 
     const draftsQuery = query(
       collection(db, 'drafts'),
@@ -320,39 +331,47 @@ export function ResumeDashboard() {
       orderBy('updatedAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(draftsQuery, (snapshot) => {
-      const parsed: ResumeDraft[] = snapshot.docs
-        .map((document) => {
-          const data = document.data();
-          const templateId = (data.templateId as string) ?? '';
-          const definition = getResumeTemplateDefinition(templateId);
-          if (!definition) {
-            return undefined;
-          }
+    const unsubscribe = onSnapshot(
+      draftsQuery,
+      (snapshot) => {
+        const parsed: ResumeDraft[] = snapshot.docs
+          .map((document) => {
+            const data = document.data();
+            const templateId = (data.templateId as string) ?? '';
+            const definition = getResumeTemplateDefinition(templateId);
+            if (!definition) {
+              return undefined;
+            }
 
-          return {
-            id: document.id,
-            ownerId: (data.ownerId as string) ?? user.uid,
-            templateId,
-            documentTitle: (data.documentTitle as string) ?? definition.defaultContent.documentTitle,
-            language: (data.language as string | undefined) ?? definition.defaultContent.language ?? 'en',
-            profile: (data.profile as ResumeDraftContent['profile']) ?? definition.defaultContent.profile,
-            summary: (data.summary as string | undefined) ?? definition.defaultContent.summary,
-            objective: (data.objective as string | undefined) ?? definition.defaultContent.objective,
-            workExperiences: parseExperiences(data.workExperiences, definition.defaultContent.workExperiences),
-            education: parseEducation(data.education, definition.defaultContent.education),
-            skillGroups: parseSkillGroups(data.skillGroups, definition.defaultContent.skillGroups),
-            listSections: parseListSections(data.listSections, definition.defaultContent.listSections),
-            certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
-            updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
-            createdAt: (data.createdAt as Timestamp)?.toDate?.(),
-          } satisfies ResumeDraft;
-        })
-        .filter(Boolean) as ResumeDraft[];
+            return {
+              id: document.id,
+              ownerId: (data.ownerId as string) ?? user.uid,
+              templateId,
+              documentTitle: (data.documentTitle as string) ?? definition.defaultContent.documentTitle,
+              language: (data.language as string | undefined) ?? definition.defaultContent.language ?? 'en',
+              profile: (data.profile as ResumeDraftContent['profile']) ?? definition.defaultContent.profile,
+              summary: (data.summary as string | undefined) ?? definition.defaultContent.summary,
+              objective: (data.objective as string | undefined) ?? definition.defaultContent.objective,
+              workExperiences: parseExperiences(data.workExperiences, definition.defaultContent.workExperiences),
+              education: parseEducation(data.education, definition.defaultContent.education),
+              skillGroups: parseSkillGroups(data.skillGroups, definition.defaultContent.skillGroups),
+              listSections: parseListSections(data.listSections, definition.defaultContent.listSections),
+              certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
+              updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
+              createdAt: (data.createdAt as Timestamp)?.toDate?.(),
+            } satisfies ResumeDraft;
+          })
+          .filter(Boolean) as ResumeDraft[];
 
-      setDrafts(parsed);
-      setLoadingDrafts(false);
-    });
+        setDrafts(parsed);
+        setLoadingDrafts(false);
+      },
+      (error) => {
+        console.error('Failed to load drafts', error);
+        setStatus(statuses.loadDraftsError);
+        setLoadingDrafts(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user]);
@@ -390,7 +409,7 @@ export function ResumeDashboard() {
       },
       (error) => {
         console.error('Failed to load downloads', error);
-        setStatus('Unable to load recent downloads.');
+        setStatus(statuses.loadDownloadsError);
         setLoadingDownloads(false);
       }
     );
@@ -450,7 +469,7 @@ export function ResumeDashboard() {
   const syncSubscription = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!user) {
-        setStatus('Sign in to manage your subscription.');
+        setStatus(statuses.signInRequired);
         return;
       }
       setSyncingSubscription(true);
@@ -458,11 +477,11 @@ export function ResumeDashboard() {
         await new Promise((resolve) => setTimeout(resolve, 350));
         await refreshProfile();
         if (!options?.silent) {
-          setStatus('Subscription data refreshed (demo mode).');
+          setStatus(statuses.subscriptionRefreshed);
         }
       } catch (error) {
         console.error('Demo subscription sync failed', error);
-        setStatus('Unable to refresh subscription details right now.');
+        setStatus(statuses.subscriptionRefreshFailed);
       } finally {
         setSyncingSubscription(false);
       }
@@ -472,16 +491,16 @@ export function ResumeDashboard() {
 
   const startCheckout = useCallback(async () => {
     if (!user) {
-      setStatus('Sign in to upgrade your subscription.');
+      setStatus(statuses.upgradeSignInRequired);
       return;
     }
     setStartingCheckout(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 350));
-      setStatus('Stripe billing runs in demo mode right now. Contact the team to enable live checkout.');
+      setStatus(statuses.checkoutDemo);
     } catch (error) {
       console.error('Demo checkout trigger failed', error);
-      setStatus('Unable to trigger the demo checkout flow.');
+      setStatus(statuses.checkoutFailed);
     } finally {
       setStartingCheckout(false);
     }
@@ -489,16 +508,16 @@ export function ResumeDashboard() {
 
   const openBillingPortal = useCallback(async () => {
     if (!user) {
-      setStatus('Sign in to manage your subscription.');
+      setStatus(statuses.billingSignInRequired);
       return;
     }
     setOpeningPortal(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 300));
-      setStatus('Billing portal access is disabled in the demo environment.');
+      setStatus(statuses.billingDisabled);
     } catch (error) {
       console.error('Demo billing portal error', error);
-      setStatus('Unable to open the demo billing portal.');
+      setStatus(statuses.billingError);
     } finally {
       setOpeningPortal(false);
     }
@@ -515,10 +534,10 @@ export function ResumeDashboard() {
     }
     if (upgradeStatus === 'success') {
       syncSubscription({ silent: true }).then(() => {
-        setStatus('Subscription upgraded successfully.');
+        setStatus(statuses.subscriptionUpgraded);
       });
     } else if (upgradeStatus === 'cancelled') {
-      setStatus('Subscription checkout cancelled.');
+      setStatus(statuses.checkoutCancelled);
     }
     params.delete('upgrade');
     const newQuery = params.toString();
@@ -548,7 +567,7 @@ export function ResumeDashboard() {
       const ref = doc(db, 'drafts', draftId);
       const snapshot = await getDoc(ref);
       if (!snapshot.exists()) {
-        setStatus('Draft not found.');
+        setStatus(statuses.draftNotFound);
         return;
       }
 
@@ -572,11 +591,11 @@ export function ResumeDashboard() {
         certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
       });
       setViewMode('edit');
-      setStatus('Draft loaded into the editor.');
+      setStatus(statuses.draftLoaded);
       setActiveSection('resume');
     } catch (error) {
       console.error(error);
-      setStatus('Unable to load draft.');
+      setStatus(statuses.draftLoadFailed);
     }
   };
 
@@ -634,11 +653,11 @@ export function ResumeDashboard() {
     setForm((previous) => ({ ...previous, language: value }));
   };
 
-  const saveDraft = async () => {
-    if (!user) return;
+  const saveDraft = async (): Promise<string | null> => {
+    if (!user) return null;
     if (!form.documentTitle.trim()) {
-      setStatus('Please provide a document title.');
-      return;
+      setStatus(statuses.missingTitle);
+      return null;
     }
 
     try {
@@ -661,33 +680,93 @@ export function ResumeDashboard() {
 
       if (form.id) {
         await setDoc(doc(db, 'drafts', form.id), payload, { merge: true });
-        setStatus('Draft updated successfully.');
-      } else {
-        const ref = await addDoc(collection(db, 'drafts'), {
-          ...payload,
-          createdAt: serverTimestamp(),
-        });
-        setForm((previous) => ({ ...previous, id: ref.id }));
-        setStatus('Draft created successfully.');
+        setStatus(statuses.draftUpdated);
+        return form.id;
       }
+
+      const ref = await addDoc(collection(db, 'drafts'), {
+        ...payload,
+        createdAt: serverTimestamp(),
+      });
+      setForm((previous) => ({ ...previous, id: ref.id }));
+      setStatus(statuses.draftCreated);
+      return ref.id;
     } catch (error) {
       console.error(error);
-      setStatus('Unable to save draft. Please try again.');
+      setStatus(statuses.draftSaveFailed);
+      return null;
+    }
+  };
+
+  const redeemTokenForDownload = async () => {
+    if (!user) {
+      setStatus(statuses.signInRequired);
+      return;
+    }
+    if (!entitlements) {
+      setStatus(statuses.missingEntitlements);
+      return;
+    }
+    if ((entitlements.tokens ?? 0) <= 0) {
+      setStatus(statuses.noTokens);
+      return;
+    }
+
+    setRedeemingToken(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const ref = doc(db, 'users', user.uid);
+        const snapshot = await transaction.get(ref);
+        const data = snapshot.data();
+        const currentTokens =
+          typeof data?.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
+        if (currentTokens <= 0) {
+          throw new Error('NO_TOKENS');
+        }
+        const currentDownloads =
+          typeof data?.entitlements?.remainingDownloads === 'number'
+            ? data.entitlements.remainingDownloads
+            : 0;
+        transaction.update(ref, {
+          'entitlements.tokens': currentTokens - 1,
+          'entitlements.remainingDownloads': currentDownloads + 1,
+        });
+      });
+      await refreshProfile();
+      setStatus(statuses.tokenRedeemed);
+    } catch (error) {
+      if ((error as Error)?.message === 'NO_TOKENS') {
+        setStatus(statuses.noTokens);
+      } else {
+        console.error('Failed to redeem token', error);
+        setStatus(statuses.tokenRedeemFailed);
+      }
+    } finally {
+      setRedeemingToken(false);
     }
   };
 
   const generatePdf = async () => {
-    if (!form.id) {
-      setStatus('Save your draft before generating a PDF.');
-      return;
-    }
     if (!entitlements) {
-      setStatus('Missing entitlements data. Please reload the page.');
+      setStatus(statuses.missingEntitlements);
       return;
     }
-    if (entitlements.remainingDownloads <= 0 && entitlements.plan === 'free') {
-      setStatus('Upgrade to a paid plan to unlock more PDF downloads.');
+    if (entitlements.remainingDownloads <= 0) {
+      if ((entitlements.tokens ?? 0) > 0) {
+        setStatus(statuses.downloadTokensAvailable);
+      } else {
+        setStatus(statuses.downloadLimitReached);
+      }
       return;
+    }
+
+    let draftId = form.id;
+    if (!draftId) {
+      const savedId = await saveDraft();
+      if (!savedId) {
+        return;
+      }
+      draftId = savedId;
     }
 
     try {
@@ -719,7 +798,7 @@ export function ResumeDashboard() {
         try {
           await addDoc(collection(db, 'downloads'), {
             userId: user.uid,
-            draftId: form.id ?? null,
+            draftId,
             templateId: form.templateId,
             documentTitle: form.documentTitle,
             language: form.language,
@@ -731,16 +810,20 @@ export function ResumeDashboard() {
         }
       }
 
-      if (user && profile?.entitlements?.plan === 'free') {
-        await updateDoc(doc(db, 'users', user.uid), {
-          'entitlements.remainingDownloads': increment(-1),
-        });
+      if (user) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            'entitlements.remainingDownloads': increment(-1),
+          });
+        } catch (error) {
+          console.error('Failed to decrement download allowance', error);
+        }
         await refreshProfile();
       }
-      setStatus('PDF generated successfully.');
+      setStatus(statuses.pdfSuccess);
     } catch (error) {
       console.error(error);
-      setStatus('Failed to generate PDF.');
+      setStatus(statuses.pdfFailed);
     }
   };
 
@@ -754,7 +837,7 @@ export function ResumeDashboard() {
       id: undefined,
     });
     setViewMode('edit');
-    setStatus('Editor reset to template defaults.');
+    setStatus(statuses.editorReset);
   };
 
   const addExperience = () => setForm((previous) => ({ ...previous, workExperiences: [...previous.workExperiences, emptyExperience()] }));
@@ -785,61 +868,163 @@ export function ResumeDashboard() {
     }));
 
   return (
-    <section style={{ padding: '1.5rem 1rem' }}>
+    <section style={{ padding: '2rem 1.25rem', background: '#f8fafc', minHeight: '100%' }}>
       <div
         style={{
           maxWidth: '1280px',
           margin: '0 auto',
           display: 'grid',
-          gap: '1.5rem',
-          gridTemplateColumns: '260px 1fr',
-          alignItems: 'start',
+          gap: '1.75rem',
         }}
       >
-        <aside
+        <header
           style={{
             background: '#fff',
-            borderRadius: '1rem',
+            borderRadius: '1.25rem',
             border: '1px solid #e2e8f0',
-            padding: '1.5rem',
-            display: 'grid',
-            gap: '1.25rem',
-            position: 'sticky',
-            top: '6rem',
-            height: 'fit-content',
+            boxShadow: '0 32px 90px -60px rgba(15, 23, 42, 0.35)',
+            overflow: 'hidden',
           }}
         >
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Workspace</h2>
-            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>Switch between tools and resources.</p>
-          </div>
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            {DASHBOARD_MENU.map((item) => {
-              const isActive = item.id === activeSection;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveSection(item.id)}
+          <div
+            style={{
+              padding: '1.5rem 1.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '1.25rem',
+            }}
+          >
+            <div style={{ display: 'grid', gap: '0.2rem' }}>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#0f172a' }}>{dashboardCopy.heroTitle}</span>
+              <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                {profile?.email ?? user?.email ?? dashboardCopy.signedInFallback}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {entitlements ? (
+                <>
+                  <div
+                    style={{
+                      background: '#f1f5f9',
+                      borderRadius: '0.75rem',
+                      padding: '0.65rem 0.95rem',
+                      display: 'grid',
+                      gap: '0.2rem',
+                      minWidth: '140px',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
+                        color: '#64748b',
+                      }}
+                    >
+                      {dashboardCopy.planLabel}
+                    </span>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>{entitlements.plan.toUpperCase()}</span>
+                  </div>
+                  <div
+                    style={{
+                      background: downloadsDepleted ? '#fee2e2' : '#ecfeff',
+                      borderRadius: '0.75rem',
+                      padding: '0.65rem 0.95rem',
+                      display: 'grid',
+                      gap: '0.2rem',
+                      minWidth: '160px',
+                      border: downloadsDepleted
+                        ? '1px solid #fecaca'
+                        : '1px solid rgba(14, 165, 233, 0.35)',
+                      color: downloadsDepleted ? '#b91c1c' : '#0f172a',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
+                      }}
+                    >
+                      {dashboardCopy.downloadsLeftLabel}
+                    </span>
+                    <span style={{ fontWeight: 700 }}>{entitlements.remainingDownloads}</span>
+                  </div>
+                  {entitlements.plan !== 'pro' && (
+                    <Link
+                      href="/#pricing"
+                      prefetch={false}
+                      style={{
+                        border: '1px solid rgba(37, 99, 235, 0.4)',
+                        background: '#2563eb',
+                        color: '#fff',
+                        padding: '0.55rem 1.1rem',
+                        borderRadius: '0.75rem',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        boxShadow: '0 12px 28px -18px rgba(37, 99, 235, 0.6)',
+                      }}
+                    >
+                      {dashboardCopy.subscribeCta}
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <div
                   style={{
-                    textAlign: 'left',
-                    padding: '0.9rem 1rem',
-                    borderRadius: '0.85rem',
-                    border: isActive ? '1px solid #1d4ed8' : '1px solid #e2e8f0',
-                    background: isActive ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc',
-                    color: isActive ? '#fff' : '#0f172a',
-                    boxShadow: isActive ? '0 16px 32px rgba(37, 99, 235, 0.2)' : 'none',
+                    background: '#f1f5f9',
+                    borderRadius: '0.75rem',
+                    padding: '0.65rem 0.95rem',
+                    color: '#475569',
+                    fontWeight: 600,
                   }}
                 >
-                  <div style={{ fontWeight: 700 }}>{item.label}</div>
-                  <div style={{ fontSize: '0.85rem', color: isActive ? 'rgba(255,255,255,0.85)' : '#64748b' }}>
-                    {item.description}
-                  </div>
-                </button>
-              );
-            })}
+                  {dashboardCopy.loadingEntitlements}
+                </div>
+              )}
+            </div>
           </div>
-        </aside>
+          <div style={{ borderTop: '1px solid #e2e8f0', padding: '0 1.75rem 1.25rem' }}>
+            <nav
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                marginTop: '1rem',
+              }}
+            >
+              {navMenu.map((item) => {
+                const isActive = item.id === activeSection;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      padding: '0.8rem 1rem',
+                      fontWeight: 600,
+                      color: isActive ? '#0f172a' : '#64748b',
+                      borderBottom: isActive ? '3px solid #2563eb' : '3px solid transparent',
+                      borderRadius: '0.6rem 0.6rem 0 0',
+                      cursor: 'pointer',
+                      transition: 'color 0.2s ease, border-color 0.2s ease',
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+            {activeMenu && (
+              <p style={{ margin: '0.85rem 0 0', color: '#475569', fontSize: '0.9rem' }}>{activeMenu.description}</p>
+            )}
+          </div>
+        </header>
         <div style={{ display: 'grid', gap: '1.75rem' }}>
           {activeSection === 'resume' && (
             <>
@@ -854,21 +1039,101 @@ export function ResumeDashboard() {
                 }}
               >
                 <div>
-                  <h1 style={{ margin: 0, fontSize: '2rem' }}>Resume workspace</h1>
-                  <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                    Craft resumes with production-ready templates, edit every section, and export polished PDFs.
-                  </p>
+                  <h1 style={{ margin: 0, fontSize: '2rem' }}>{dashboardCopy.resumeHeading}</h1>
+                  <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{dashboardCopy.resumeCopy}</p>
                 </div>
                 {entitlements && (
                   <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                     <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#eef2ff', minWidth: '200px' }}>
-                      <strong>Plan</strong>
+                      <strong>{dashboardCopy.planLabel}</strong>
                       <div style={{ fontSize: '1.2rem' }}>{entitlements.plan.toUpperCase()}</div>
                     </div>
-                    <div style={{ padding: '1rem', borderRadius: '0.75rem', background: '#ecfeff', minWidth: '200px' }}>
-                      <strong>Downloads left</strong>
+                    <div
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        background: downloadsDepleted ? '#fee2e2' : '#ecfeff',
+                        minWidth: '200px',
+                        color: downloadsDepleted ? '#b91c1c' : '#0f172a',
+                        border: downloadsDepleted ? '1px solid #fecaca' : 'none',
+                      }}
+                    >
+                      <strong>{dashboardCopy.downloadsLeftLabel}</strong>
                       <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
                     </div>
+                    <div
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        background: '#fefce8',
+                        minWidth: '240px',
+                        display: 'grid',
+                        gap: '0.6rem',
+                        border: '1px solid rgba(202, 138, 4, 0.25)',
+                      }}
+                    >
+                      <div>
+                        <strong>{dashboardCopy.tokenBalanceLabel}</strong>
+                        <div style={{ fontSize: '1.2rem' }}>{tokensAvailable}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={redeemTokenForDownload}
+                        disabled={redeemingToken || tokensAvailable <= 0}
+                        style={{
+                          border: 'none',
+                          background: tokensAvailable > 0 ? '#f59e0b' : '#f1f5f9',
+                          color: tokensAvailable > 0 ? '#fff' : '#64748b',
+                          padding: '0.65rem 1rem',
+                          borderRadius: '0.65rem',
+                          fontWeight: 600,
+                          cursor: redeemingToken || tokensAvailable <= 0 ? 'not-allowed' : 'pointer',
+                          boxShadow:
+                            tokensAvailable > 0
+                              ? '0 18px 36px -24px rgba(245, 158, 11, 0.65)'
+                              : 'none',
+                        }}
+                      >
+                        {redeemingToken ? dashboardCopy.tokenRedeemLoading : dashboardCopy.tokenRedeemCta}
+                      </button>
+                      <span style={{ fontSize: '0.85rem', color: '#854d0e' }}>
+                        {tokensAvailable <= 0 ? dashboardCopy.tokenEmpty : dashboardCopy.tokenInfo}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        background: '#f8fafc',
+                        minWidth: '220px',
+                        border: '1px solid rgba(148, 163, 184, 0.3)',
+                      }}
+                    >
+                      <strong>{dashboardCopy.nextRefreshLabel}</strong>
+                      <div style={{ fontSize: '1.1rem' }}>{nextRefreshDisplay}</div>
+                    </div>
+                  </div>
+                )}
+                {downloadsDepleted && (
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.75rem',
+                      background: tokensAvailable > 0 ? '#fef9c3' : '#fef2f2',
+                      color: tokensAvailable > 0 ? '#92400e' : '#b91c1c',
+                      fontWeight: 600,
+                      display: 'grid',
+                      gap: '0.35rem',
+                    }}
+                  >
+                    <span>
+                      {tokensAvailable > 0
+                        ? statuses.downloadTokensAvailable
+                        : dashboardCopy.downloadLimitExceeded}
+                    </span>
+                    <span style={{ fontWeight: 500 }}>
+                      {tokensAvailable > 0 ? dashboardCopy.tokenInfo : dashboardCopy.downloadResetByAdmin}
+                    </span>
                   </div>
                 )}
                 {status && (
@@ -942,21 +1207,23 @@ export function ResumeDashboard() {
                     fontWeight: 600,
                   }}
                 >
-                  Save draft
+                  {dashboardCopy.saveDraftAction}
                 </button>
                 <button
                   type="button"
                   onClick={generatePdf}
+                  disabled={downloadsDepleted}
                   style={{
                     padding: '0.75rem 1.35rem',
                     borderRadius: '0.85rem',
                     border: '1px solid #0f172a',
-                    background: '#0f172a',
-                    color: '#fff',
+                    background: downloadsDepleted ? '#e2e8f0' : '#0f172a',
+                    color: downloadsDepleted ? '#64748b' : '#fff',
                     fontWeight: 600,
+                    cursor: downloadsDepleted ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  Download PDF
+                  {dashboardCopy.downloadAction}
                 </button>
               </div>
             </div>
@@ -1060,11 +1327,11 @@ export function ResumeDashboard() {
             </section>
 
             <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
-              <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>Saved drafts</h2>
+              <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>{dashboardCopy.draftsHeading}</h2>
               {loadingDrafts ? (
-                <p style={{ color: '#64748b' }}>Loading your drafts…</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsLoading}</p>
               ) : resumeDrafts.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No drafts yet. Save a resume to see it here.</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsEmpty}</p>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
                   {resumeDrafts.map((draft) => (
@@ -1083,7 +1350,7 @@ export function ResumeDashboard() {
                       >
                         <div style={{ fontWeight: 600 }}>{draft.documentTitle}</div>
                         <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                          {getResumeTemplateDefinition(draft.templateId)?.name ?? 'Custom'} ·{' '}
+                          {getResumeTemplateDefinition(draft.templateId)?.name ?? dashboardCopy.customTemplateFallback} ·{' '}
                           {draft.updatedAt.toLocaleDateString()} · {formatLanguageLabel(draft.language)}
                         </div>
                       </button>
@@ -1605,43 +1872,45 @@ export function ResumeDashboard() {
                     onClick={saveDraft}
                     style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: '1px solid #0f172a', background: '#fff', color: '#0f172a', fontWeight: 600 }}
                   >
-                    Save draft
+                    {dashboardCopy.saveDraftAction}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('preview')}
-                    style={{
-                      padding: '0.75rem 1.25rem',
+                <button
+                  type="button"
+                  onClick={() => setViewMode('preview')}
+                  style={{
+                    padding: '0.75rem 1.25rem',
                       borderRadius: '0.75rem',
                       border: '1px solid #1d4ed8',
                       background: '#1d4ed8',
                       color: '#fff',
                       fontWeight: 600,
-                    }}
-                  >
-                    Preview resume
-                  </button>
+                  }}
+                >
+                  {dashboardCopy.previewAction}
+                </button>
                   <button
                     type="button"
                     onClick={generatePdf}
+                    disabled={downloadsDepleted}
                     style={{
                       padding: '0.75rem 1.25rem',
                       borderRadius: '0.75rem',
                       border: '1px solid #0f172a',
-                      background: '#0f172a',
-                      color: '#fff',
+                      background: downloadsDepleted ? '#e2e8f0' : '#0f172a',
+                      color: downloadsDepleted ? '#64748b' : '#fff',
                       fontWeight: 600,
+                      cursor: downloadsDepleted ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    Generate PDF
-                  </button>
+                  {dashboardCopy.downloadAction}
+                </button>
                   <button
                     type="button"
                     onClick={resetForm}
                     style={{ padding: '0.75rem 1.25rem', borderRadius: '0.75rem', border: 'none', background: '#e2e8f0', color: '#0f172a', fontWeight: 600 }}
                   >
-                    Reset
-                  </button>
+                  {dashboardCopy.resetAction}
+                </button>
                 </div>
               </div>
             </section>
@@ -1744,7 +2013,7 @@ export function ResumeDashboard() {
                             <span style={{ fontSize: '0.9rem', color: '#64748b' }}>{template.description}</span>
                           </div>
                           <span style={{ fontSize: '0.85rem', color: template.accentColor, fontWeight: 600 }}>
-                            Open in editor ↗
+                            {dashboardCopy.openInEditor}
                           </span>
                         </button>
                       );
@@ -1754,13 +2023,11 @@ export function ResumeDashboard() {
               </div>
 
               <div style={{ display: 'grid', gap: '1rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.3rem' }}>Saved CV drafts</h2>
+                <h2 style={{ margin: 0, fontSize: '1.3rem' }}>{dashboardCopy.cvDraftsHeading}</h2>
                 {loadingDrafts ? (
-                  <p style={{ color: '#64748b' }}>Loading your CV drafts…</p>
+                  <p style={{ color: '#64748b' }}>{dashboardCopy.draftsLoading}</p>
                 ) : cvDrafts.length === 0 ? (
-                  <p style={{ color: '#64748b' }}>
-                    No CV drafts yet. Load a template above and save your progress to revisit it later.
-                  </p>
+                  <p style={{ color: '#64748b' }}>{dashboardCopy.draftsEmpty}</p>
                 ) : (
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.85rem' }}>
                     {cvDrafts.map((draft) => {
@@ -1782,7 +2049,7 @@ export function ResumeDashboard() {
                             <div>
                               <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
                               <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                                {definition?.name ?? 'Custom template'} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
+                                {definition?.name ?? dashboardCopy.customTemplateFallback} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
                                 {formatLanguageLabel(draft.language)}
                               </div>
                             </div>
@@ -1803,7 +2070,7 @@ export function ResumeDashboard() {
                                   fontWeight: 600,
                                 }}
                               >
-                                Edit
+                                {dashboardCopy.editAction}
                               </button>
                               <button
                                 type="button"
@@ -1821,7 +2088,7 @@ export function ResumeDashboard() {
                                   fontWeight: 600,
                                 }}
                               >
-                                Preview
+                                {dashboardCopy.previewAction}
                               </button>
                             </div>
                           </div>
@@ -1838,15 +2105,13 @@ export function ResumeDashboard() {
               style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.5rem' }}
             >
               <div>
-                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Saved drafts</h1>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                  Continue where you left off. Pick a draft to jump back into the editor or open a quick preview.
-                </p>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{dashboardCopy.draftsHeading}</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{dashboardCopy.draftsDescription}</p>
               </div>
               {loadingDrafts ? (
-                <p style={{ color: '#64748b' }}>Loading your drafts…</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsLoading}</p>
               ) : drafts.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No drafts yet. Save a resume or CV from the editor to see it listed here.</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.draftsEmpty}</p>
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '1rem' }}>
                   {drafts.map((draft) => {
@@ -1869,8 +2134,8 @@ export function ResumeDashboard() {
                           <div>
                             <div style={{ fontWeight: 700 }}>{draft.documentTitle}</div>
                             <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                              {definition?.name ?? 'Custom template'} · {kindLabel} · Updated {draft.updatedAt.toLocaleDateString()} ·{' '}
-                              {formatLanguageLabel(draft.language)}
+                              {definition?.name ?? dashboardCopy.customTemplateFallback} · {kindLabel} · Updated{' '}
+                              {draft.updatedAt.toLocaleDateString()} · {formatLanguageLabel(draft.language)}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -1890,7 +2155,7 @@ export function ResumeDashboard() {
                                 fontWeight: 600,
                               }}
                             >
-                              Edit
+                              {dashboardCopy.editAction}
                             </button>
                             <button
                               type="button"
@@ -1908,7 +2173,7 @@ export function ResumeDashboard() {
                                 fontWeight: 600,
                               }}
                             >
-                              Preview
+                              {dashboardCopy.previewAction}
                             </button>
                           </div>
                         </div>
@@ -1924,13 +2189,11 @@ export function ResumeDashboard() {
               style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}
             >
               <div>
-                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Downloads</h1>
-                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>
-                  Generated PDFs will appear here after you create them from the editor.
-                </p>
+                <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{dashboardCopy.downloadsHeading}</h1>
+                <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{dashboardCopy.downloadsCopy}</p>
               </div>
               {loadingDownloads ? (
-                <p style={{ color: '#64748b' }}>Loading your downloads…</p>
+                <p style={{ color: '#64748b' }}>{dashboardCopy.downloadsLoading}</p>
               ) : downloads.length === 0 ? (
                 <div
                   style={{
@@ -1940,21 +2203,18 @@ export function ResumeDashboard() {
                     background: '#f8fafc',
                   }}
                 >
-                  <p style={{ margin: 0, color: '#64748b' }}>
-                    No downloads yet. Use the <strong>Generate PDF</strong> button inside the resume editor to create your
-                    first file.
-                  </p>
+                  <p style={{ margin: 0, color: '#64748b' }}>{dashboardCopy.downloadsEmpty}</p>
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '520px' }}>
                     <thead>
                       <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Document</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Template</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Language</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Generated</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.document}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.template}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.language}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.plan}</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>{dashboardCopy.downloadsColumns.created}</th>
                       </tr>
                     </thead>
                     <tbody>

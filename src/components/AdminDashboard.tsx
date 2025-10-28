@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Timestamp,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   increment,
@@ -16,16 +18,14 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { CareerStudioLogo } from './CareerStudioLogo';
+import { useLocalization, formatMessage } from '@/context/LocalizationContext';
 
 type AdminTab = 'overview' | 'users' | 'downloads' | 'subscriptions' | 'templates';
 
-const ADMIN_TABS: { id: AdminTab; label: string; description: string }[] = [
-  { id: 'overview', label: 'Overview', description: 'Metrics and recent activity.' },
-  { id: 'users', label: 'Users', description: 'Manage roles and entitlements.' },
-  { id: 'downloads', label: 'Downloads', description: 'Audit generated documents.' },
-  { id: 'subscriptions', label: 'Subscriptions', description: 'Review paid customers.' },
-  { id: 'templates', label: 'Templates', description: 'Organize available layouts.' },
-];
+const FREE_DOWNLOAD_ALLOWANCE = 1;
+const PRO_WEEKLY_ALLOWANCE = 10;
+const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface UserRow {
   id: string;
@@ -33,6 +33,8 @@ interface UserRow {
   role: string;
   createdAt?: Date;
   remainingDownloads?: number;
+  tokens?: number;
+  nextRefreshAt?: Date | null;
   plan?: 'free' | 'pro';
   stripeCustomerId?: string;
   subscriptionStatus?: string;
@@ -66,16 +68,25 @@ function formatDateTime(value?: Date) {
 }
 
 export function AdminDashboard() {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
+  const { copy } = useLocalization();
+  const adminCopy = copy.adminDashboard;
+  const navCopy = copy.nav;
+  const tabs = adminCopy.tabs as { id: AdminTab; label: string; description: string }[];
   const [users, setUsers] = useState<UserRow[]>([]);
   const [downloads, setDownloads] = useState<DownloadRow[]>([]);
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [syncingUserId, setSyncingUserId] = useState<string | null>(null);
   const [adjustingUserId, setAdjustingUserId] = useState<string | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [grantingTokensId, setGrantingTokensId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [loadingDownloads, setLoadingDownloads] = useState(true);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const activeTabDefinition = tabs.find((tab) => tab.id === activeTab);
 
   useEffect(() => {
     const userQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
@@ -84,12 +95,25 @@ export function AdminDashboard() {
         const data = document.data();
         const subscriptionStatus = data.subscription?.status as string | undefined;
         const periodEnd = (data.subscription?.currentPeriodEnd as Timestamp | undefined)?.toDate?.() ?? null;
+        const tokens =
+          typeof data.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
+        const rawNextRefresh = data.entitlements?.nextRefreshAt;
+        let nextRefreshAt: Date | null = null;
+        if (rawNextRefresh) {
+          if (typeof rawNextRefresh.toDate === 'function') {
+            nextRefreshAt = rawNextRefresh.toDate();
+          } else if (rawNextRefresh instanceof Date) {
+            nextRefreshAt = rawNextRefresh;
+          }
+        }
         return {
           id: document.id,
           email: (data.email as string) ?? 'Unknown email',
           role: (data.role as string) ?? 'user',
           createdAt: (data.createdAt as Timestamp)?.toDate?.(),
           remainingDownloads: data.entitlements?.remainingDownloads,
+          tokens,
+          nextRefreshAt,
           plan: data.entitlements?.plan,
           stripeCustomerId: data.stripeCustomerId as string | undefined,
           subscriptionStatus,
@@ -129,7 +153,7 @@ export function AdminDashboard() {
       },
       (error) => {
         console.error('Failed to load downloads', error);
-        setStatus('Unable to load downloads from Firestore.');
+        setStatus(adminCopy.statuses.downloadsFailed);
         setLoadingDownloads(false);
       }
     );
@@ -151,7 +175,7 @@ export function AdminDashboard() {
         setTemplates(rows);
       } catch (error) {
         console.error('Failed to load templates', error);
-        setStatus('Unable to load templates.');
+        setStatus(adminCopy.statuses.templatesFailed);
       } finally {
         setLoadingTemplates(false);
       }
@@ -159,6 +183,21 @@ export function AdminDashboard() {
 
     loadTemplates();
   }, []);
+
+  useEffect(() => {
+    if (users.length === 0) {
+      if (selectedUserId !== null) {
+        setSelectedUserId(null);
+      }
+      return;
+    }
+
+    if (selectedUserId && users.some((userRow) => userRow.id === selectedUserId)) {
+      return;
+    }
+
+    setSelectedUserId(users[0].id);
+  }, [users, selectedUserId]);
 
   const userMap = useMemo(() => {
     const map = new Map<string, UserRow>();
@@ -177,14 +216,64 @@ export function AdminDashboard() {
   }, [downloads]);
   const totalDownloads = downloads.length;
   const recentDownloads = useMemo(() => downloads.slice(0, 8), [downloads]);
+  const overviewCopy = formatMessage(adminCopy.overviewCopy, {
+    email: profile?.email ?? adminCopy.roleLabel,
+  });
+  const metricValues: Record<'totalUsers' | 'proUsers' | 'downloads30' | 'totalDownloads', number> = {
+    totalUsers,
+    proUsers,
+    downloads30: downloadsLast30Days,
+    totalDownloads,
+  };
+  const overviewTab = tabs.find((tab) => tab.id === 'overview');
+  const usersTab = tabs.find((tab) => tab.id === 'users');
+  const downloadsTab = tabs.find((tab) => tab.id === 'downloads');
+  const subscriptionsTab = tabs.find((tab) => tab.id === 'subscriptions');
+  const templatesTab = tabs.find((tab) => tab.id === 'templates');
+  const selectedUser = selectedUserId ? userMap.get(selectedUserId) ?? null : null;
+  const usersDetailCopy = adminCopy.usersDetail;
+  const detailSubtitle = selectedUser
+    ? formatMessage(usersDetailCopy.selectedSubtitle, { email: selectedUser.email })
+    : usersDetailCopy.subtitle;
+  const detailLabels = usersDetailCopy.labels;
+  const detailSections = usersDetailCopy.sections;
+  const actionButtonBase = {
+    padding: '0.4rem 0.75rem',
+    borderRadius: '0.65rem',
+    fontWeight: 600,
+    fontSize: '0.85rem',
+    border: '1px solid rgba(15, 23, 42, 0.12)',
+    background: '#f8fafc',
+    color: '#0f172a',
+    cursor: 'pointer',
+  } as const;
+  const tableActionButton = {
+    ...actionButtonBase,
+    padding: '0.35rem 0.65rem',
+    fontSize: '0.78rem',
+  } as const;
+  const detailLabelStyle = {
+    fontSize: '0.72rem',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: '#94a3b8',
+    fontWeight: 700,
+    marginBottom: '0.15rem',
+  } as const;
+  const detailValueStyle = {
+    margin: 0,
+    fontWeight: 600,
+    color: '#0f172a',
+    wordBreak: 'break-word',
+  } as const;
 
   const updateRole = async (userId: string, nextRole: 'admin' | 'user') => {
     try {
       await updateDoc(doc(db, 'users', userId), { role: nextRole });
-      setStatus(`Role updated to ${nextRole} successfully.`);
+      setStatus(formatMessage(adminCopy.statuses.roleUpdated, { role: nextRole }));
     } catch (error) {
       console.error(error);
-      setStatus('Failed to update role.');
+      setStatus(adminCopy.statuses.roleUpdateFailed);
     }
   };
 
@@ -194,24 +283,71 @@ export function AdminDashboard() {
       await updateDoc(doc(db, 'users', userId), {
         'entitlements.remainingDownloads': increment(delta),
       });
-      setStatus(`Adjusted downloads by ${delta > 0 ? '+' : ''}${delta}.`);
+      const deltaLabel = `${delta > 0 ? '+' : ''}${delta}`;
+      setStatus(formatMessage(adminCopy.statuses.adjustSuccess, { delta: deltaLabel }));
     } catch (error) {
       console.error(error);
-      setStatus('Unable to adjust download allowance.');
+      setStatus(adminCopy.statuses.adjustFailed);
     } finally {
       setAdjustingUserId(null);
     }
   };
 
-  const setPlan = async (userId: string, plan: 'free' | 'pro') => {
+  const resetDownloads = async (user: UserRow) => {
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        'entitlements.plan': plan,
+      setResettingUserId(user.id);
+      const allowance = user.plan === 'pro' ? PRO_WEEKLY_ALLOWANCE : FREE_DOWNLOAD_ALLOWANCE;
+      const updates: Record<string, unknown> = {
+        'entitlements.remainingDownloads': allowance,
+        'entitlements.nextRefreshAt':
+          user.plan === 'pro'
+            ? Timestamp.fromDate(new Date(Date.now() + WEEK_IN_MS))
+            : null,
+      };
+      await updateDoc(doc(db, 'users', user.id), {
+        ...updates,
       });
-      setStatus(`Plan updated to ${plan}.`);
+      setStatus(formatMessage(adminCopy.statuses.resetSuccess, { allowance }));
     } catch (error) {
       console.error(error);
-      setStatus('Failed to update plan.');
+      setStatus(adminCopy.statuses.resetFailed);
+    } finally {
+      setResettingUserId(null);
+    }
+  };
+
+  const setPlan = async (userId: string, plan: 'free' | 'pro') => {
+    try {
+      const updates: Record<string, unknown> = {
+        'entitlements.plan': plan,
+      };
+      if (plan === 'pro') {
+        updates['entitlements.remainingDownloads'] = PRO_WEEKLY_ALLOWANCE;
+        updates['entitlements.nextRefreshAt'] = Timestamp.fromDate(new Date(Date.now() + WEEK_IN_MS));
+      } else {
+        updates['entitlements.remainingDownloads'] = FREE_DOWNLOAD_ALLOWANCE;
+        updates['entitlements.nextRefreshAt'] = null;
+      }
+      await updateDoc(doc(db, 'users', userId), updates);
+      setStatus(formatMessage(adminCopy.statuses.planUpdated, { plan }));
+    } catch (error) {
+      console.error(error);
+      setStatus(adminCopy.statuses.planFailed);
+    }
+  };
+
+  const grantTokens = async (userId: string, amount: number) => {
+    try {
+      setGrantingTokensId(userId);
+      await updateDoc(doc(db, 'users', userId), {
+        'entitlements.tokens': increment(amount),
+      });
+      setStatus(formatMessage(adminCopy.statuses.tokensGranted, { count: amount }));
+    } catch (error) {
+      console.error(error);
+      setStatus(adminCopy.statuses.tokensGrantFailed);
+    } finally {
+      setGrantingTokensId(null);
     }
   };
 
@@ -219,10 +355,10 @@ export function AdminDashboard() {
     try {
       setSyncingUserId(userId);
       await new Promise((resolve) => setTimeout(resolve, 320));
-      setStatus('Subscription status refreshed (demo mode).');
+      setStatus(adminCopy.statuses.subscriptionRefreshed);
     } catch (error) {
       console.error('Demo subscription refresh failed', error);
-      setStatus('Unable to refresh the subscription status right now.');
+      setStatus(adminCopy.statuses.subscriptionFailed);
     } finally {
       setSyncingUserId(null);
     }
@@ -237,7 +373,7 @@ export function AdminDashboard() {
         accentColor: template.accentColor,
         createdAt: Timestamp.now(),
       });
-      setStatus('Template duplicated successfully.');
+      setStatus(adminCopy.statuses.templateDuplicated);
       setTemplates((previous) => [
         ...previous,
         {
@@ -248,104 +384,420 @@ export function AdminDashboard() {
       ]);
     } catch (error) {
       console.error(error);
-      setStatus('Unable to duplicate template.');
+      setStatus(adminCopy.statuses.templatesFailed);
+    }
+  };
+
+  const deleteUserAccount = async (user: UserRow) => {
+    const confirmation = window.confirm(
+      formatMessage(adminCopy.confirmations.deleteUser, { email: user.email })
+    );
+    if (!confirmation) return;
+
+    try {
+      setDeletingUserId(user.id);
+      let emailSent = true;
+
+      try {
+        const response = await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, email: user.email }),
+        });
+
+        if (!response.ok) {
+          emailSent = false;
+        } else {
+          const payload: { emailSent?: boolean } = await response.json().catch(() => ({}));
+          if (payload.emailSent === false) {
+            emailSent = false;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send deletion email', error);
+        emailSent = false;
+      }
+
+      await deleteDoc(doc(db, 'users', user.id));
+
+      setStatus(
+        emailSent ? adminCopy.statuses.userDeleted : adminCopy.statuses.userDeleteEmailFailed
+      );
+    } catch (error) {
+      console.error('Failed to delete user account', error);
+      setStatus(adminCopy.statuses.userDeleteFailed);
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
   return (
-    <section style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto', display: 'grid', gap: '1.5rem' }}>
-      <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '1rem', border: '1px solid #e2e8f0', boxShadow: '0 24px 60px -35px rgba(15, 23, 42, 0.25)' }}>
-        <h1 style={{ margin: '0 0 0.5rem', fontSize: '2rem' }}>Admin control center</h1>
-        <p style={{ margin: 0, color: '#475569' }}>
-          Manage users, downloads, and subscriptions. Signed in as <strong>{profile?.email}</strong> with
-          <strong> {profile?.role}</strong> access.
-        </p>
-        <p style={{ margin: '0.5rem 0 0', color: '#6366f1', fontWeight: 500 }}>
-          Stripe automation is running in demo mode—actions here simulate the real billing flows.
-        </p>
-        {status && (
-          <p style={{ marginTop: '1rem', color: '#2563eb' }}>
-            {status}
-          </p>
-        )}
-      </div>
-
-      <nav style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-        {ADMIN_TABS.map((tab) => {
-          const isActive = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#f1f5f9',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          background: 'rgba(248, 250, 252, 0.94)',
+          backdropFilter: 'blur(18px)',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.28)',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: '1rem 1.75rem 1.15rem',
+            display: 'grid',
+            gap: '0.9rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <CareerStudioLogo variant="inline" markSize={38} />
+              <div style={{ display: 'grid', lineHeight: 1.2 }}>
+                <span style={{ fontWeight: 700, letterSpacing: '0.01em', color: '#0f172a' }}>
+                  {adminCopy.headerTitle}
+                </span>
+                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>{adminCopy.headerSubtitle}</span>
+              </div>
+            </div>
+            <div
               style={{
-                padding: '0.65rem 1.2rem',
-                borderRadius: '9999px',
-                border: isActive ? '1px solid #1d4ed8' : '1px solid #cbd5f5',
-                background: isActive ? '#1d4ed8' : '#f8fafc',
-                color: isActive ? '#fff' : '#1e293b',
-                fontWeight: 600,
-                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                flexWrap: 'wrap',
               }}
             >
-              {tab.label}
-            </button>
-          );
-        })}
-      </nav>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  background: '#f1f5f9',
+                  borderRadius: '0.9rem',
+                  padding: '0.45rem 0.85rem',
+                  border: '1px solid rgba(148, 163, 184, 0.35)',
+                }}
+              >
+                <svg
+                  aria-hidden
+                  width="18"
+                  height="18"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M9.5 3.5a6 6 0 104.243 10.243l2.628 2.629a1 1 0 001.415-1.415l-2.629-2.628A6 6 0 009.5 3.5z"
+                    stroke="#475569"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <input
+                  type="search"
+                  placeholder={adminCopy.searchPlaceholder}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    fontSize: '0.9rem',
+                    color: '#0f172a',
+                    minWidth: '180px',
+                  }}
+                />
+              </label>
+              <Link
+                href="/"
+                style={{
+                  border: '1px solid rgba(148, 163, 184, 0.35)',
+                  background: '#fff',
+                  color: '#0f172a',
+                  padding: '0.5rem 0.95rem',
+                  borderRadius: '0.85rem',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                {navCopy.visitWebsite}
+              </Link>
+              <button
+                type="button"
+                style={{
+                  border: 'none',
+                  background: '#0ea5e9',
+                  color: '#fff',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: '0.9rem',
+                  fontWeight: 600,
+                  boxShadow: '0 16px 32px -24px rgba(14, 165, 233, 0.65)',
+                  cursor: 'pointer',
+                }}
+              >
+                {adminCopy.createReport}
+              </button>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                style={{
+                  border: '1px solid rgba(37, 99, 235, 0.3)',
+                  background: '#fff',
+                  color: '#2563eb',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {adminCopy.signOut}
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gap: '0.45rem' }}>
+            <nav
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.65rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              {tabs.map((tab) => {
+                const isActive = tab.id === activeTab;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: isActive ? '#1d4ed8' : '#475569',
+                      padding: '0.6rem 0.85rem',
+                      borderRadius: '0.8rem',
+                      fontWeight: 600,
+                      position: 'relative',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tab.label}
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: '0.75rem',
+                        right: '0.75rem',
+                        bottom: '-0.35rem',
+                        height: isActive ? '3px' : '1px',
+                        background: isActive ? '#2563eb' : 'rgba(148, 163, 184, 0.5)',
+                        borderRadius: '999px',
+                        transition: 'height 0.2s ease, background 0.2s ease',
+                      }}
+                    />
+                  </button>
+                );
+              })}
+            </nav>
+            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{activeTabDefinition?.description}</span>
+          </div>
+        </div>
+      </header>
+
+      <main
+        style={{
+          flex: '1 1 auto',
+          width: '100%',
+          padding: '2rem 1.5rem 3rem',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gap: '1.5rem' }}>
+          <div
+            style={{
+              background: '#fff',
+              padding: '1.75rem',
+              borderRadius: '1.25rem',
+              border: '1px solid rgba(226, 232, 240, 0.8)',
+              boxShadow: '0 26px 65px -40px rgba(15, 23, 42, 0.3)',
+              display: 'grid',
+              gap: '1.25rem',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '0.65rem',
+                flexWrap: 'wrap',
+                fontSize: '0.85rem',
+                color: '#475569',
+              }}
+            >
+              <span
+                style={{
+                  background: '#f1f5f9',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  fontWeight: 600,
+                  color: '#1e3a8a',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                }}
+              >
+                <span>{adminCopy.roleLabel}:</span>
+                <span>{profile?.role ?? 'user'}</span>
+              </span>
+            </div>
+            <div style={{ display: 'grid', gap: '0.6rem' }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(37, 99, 235, 0.1)',
+                    color: '#2563eb',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {adminCopy.badge}
+                </span>
+                <span style={{ color: '#64748b' }}>{adminCopy.badgeDescriptor}</span>
+              </div>
+              <h1 style={{ margin: 0, fontSize: '2.1rem', color: '#0f172a' }}>{adminCopy.overviewTitle}</h1>
+              <p style={{ margin: 0, color: '#475569', lineHeight: 1.6 }}>{overviewCopy}</p>
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gap: '0.75rem',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              }}
+            >
+              {adminCopy.metrics.map((metric) => {
+                const value = metricValues[metric.valueKey] ?? 0;
+                const footer =
+                  metric.valueKey === 'proUsers'
+                    ? adminCopy.metricFooters.proUsers
+                    : metric.valueKey === 'downloads30'
+                    ? adminCopy.metricFooters.downloads30
+                    : null;
+                return (
+                  <div
+                    key={metric.valueKey}
+                    style={{
+                      borderRadius: '0.9rem',
+                      padding: '0.85rem 1rem',
+                      background: '#f8fafc',
+                      border: '1px solid rgba(226, 232, 240, 0.7)',
+                      display: 'grid',
+                      gap: '0.35rem',
+                    }}
+                  >
+                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>
+                      {value.toLocaleString()}
+                    </span>
+                    <span style={{ color: '#475569', fontWeight: 600 }}>{metric.label}</span>
+                    {footer ? <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{footer}</span> : null}
+                  </div>
+                );
+              })}
+            </div>
+            {status && (
+              <div
+                style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '0.9rem',
+                  background: 'rgba(14, 165, 233, 0.12)',
+                  color: '#0369a1',
+                  fontWeight: 500,
+                }}
+              >
+                {status}
+              </div>
+            )}
+          </div>
 
       {activeTab === 'overview' && (
         <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.5rem' }}>
           <div>
-            <h2 style={{ margin: 0 }}>Operational snapshot</h2>
-            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{ADMIN_TABS.find((tab) => tab.id === 'overview')?.description}</p>
+            <h2 style={{ margin: 0 }}>{overviewTab?.label ?? adminCopy.overviewTitle}</h2>
+            {overviewTab?.description ? (
+              <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{overviewTab.description}</p>
+            ) : null}
           </div>
           <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-            {[{
-              label: 'Total users',
-              value: totalUsers.toLocaleString(),
-            },
-            {
-              label: 'Pro subscribers',
-              value: proUsers.toLocaleString(),
-            },
-            {
-              label: 'Downloads (30 days)',
-              value: downloadsLast30Days.toLocaleString(),
-            },
-            {
-              label: 'All-time downloads',
-              value: totalDownloads.toLocaleString(),
-            }].map((card) => (
-              <div
-                key={card.label}
-                style={{
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.9rem',
-                  padding: '1.1rem',
-                  background: '#f8fafc',
-                  display: 'grid',
-                  gap: '0.35rem',
-                }}
-              >
-                <strong style={{ fontSize: '1.65rem' }}>{card.value}</strong>
-                <span style={{ color: '#475569' }}>{card.label}</span>
-              </div>
-            ))}
+            {adminCopy.metrics.map((metric) => {
+              const value = metricValues[metric.valueKey] ?? 0;
+              const footer =
+                metric.valueKey === 'proUsers'
+                  ? adminCopy.metricFooters.proUsers
+                  : metric.valueKey === 'downloads30'
+                  ? adminCopy.metricFooters.downloads30
+                  : null;
+              return (
+                <div
+                  key={`overview-${metric.valueKey}`}
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.9rem',
+                    padding: '1.1rem',
+                    background: '#f8fafc',
+                    display: 'grid',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <strong style={{ fontSize: '1.65rem' }}>{value.toLocaleString()}</strong>
+                  <span style={{ color: '#475569' }}>{metric.label}</span>
+                  {footer ? <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{footer}</span> : null}
+                </div>
+              );
+            })}
           </div>
           <div style={{ display: 'grid', gap: '1rem' }}>
-            <h3 style={{ margin: 0 }}>Latest downloads</h3>
+            <h3 style={{ margin: 0 }}>{adminCopy.downloadsHeading}</h3>
             {recentDownloads.length === 0 ? (
-              <p style={{ color: '#64748b' }}>No downloads recorded yet.</p>
+              <p style={{ color: '#64748b' }}>{adminCopy.downloadsEmpty}</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Document</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>User</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Template</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Generated</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.document}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.user}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.template}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.language}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.plan}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.created}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -356,6 +808,7 @@ export function AdminDashboard() {
                         <td style={{ padding: '0.75rem 0.5rem' }}>{download.documentTitle}</td>
                         <td style={{ padding: '0.75rem 0.5rem' }}>{userRow?.email ?? download.userId}</td>
                         <td style={{ padding: '0.75rem 0.5rem' }}>{download.templateId}</td>
+                        <td style={{ padding: '0.75rem 0.5rem' }}>{download.language ?? '—'}</td>
                         <td style={{ padding: '0.75rem 0.5rem' }}>{(download.plan ?? userRow?.plan ?? 'free').toUpperCase()}</td>
                         <td style={{ padding: '0.75rem 0.5rem' }}>{formatDateTime(download.createdAt)}</td>
                       </tr>
@@ -371,102 +824,374 @@ export function AdminDashboard() {
       {activeTab === 'users' && (
         <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}>
           <div>
-            <h2 style={{ margin: 0 }}>User management</h2>
-            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{ADMIN_TABS.find((tab) => tab.id === 'users')?.description}</p>
+            <h2 style={{ margin: 0 }}>{adminCopy.usersHeading}</h2>
+            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{usersTab?.description ?? adminCopy.usersCopy}</p>
           </div>
           {users.length === 0 ? (
-            <p>No users yet.</p>
+            <p style={{ color: '#64748b' }}>{adminCopy.usersEmpty}</p>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Email</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Role</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Downloads left</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Subscription status</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Joined</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((userRow) => (
-                    <tr key={userRow.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.email}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.role}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{(userRow.plan ?? 'free').toUpperCase()}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.remainingDownloads ?? 0}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{userRow.subscriptionStatus ?? '—'}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{formatDate(userRow.createdAt)}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <button
-                            onClick={() => updateRole(userRow.id, 'user')}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #94a3b8',
-                              background: '#fff',
-                            }}
-                          >
-                            Set user
-                          </button>
-                          <button
-                            onClick={() => updateRole(userRow.id, 'admin')}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #1d4ed8',
-                              background: '#1d4ed8',
-                              color: '#fff',
-                            }}
-                          >
-                            Set admin
-                          </button>
-                          <button
-                            onClick={() => adjustDownloads(userRow.id, 10)}
-                            disabled={adjustingUserId === userRow.id}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #16a34a',
-                              background: adjustingUserId === userRow.id ? '#bbf7d0' : '#22c55e',
-                              color: adjustingUserId === userRow.id ? '#166534' : '#fff',
-                            }}
-                          >
-                            {adjustingUserId === userRow.id ? 'Updating…' : '+10 downloads'}
-                          </button>
-                          <button
-                            onClick={() => setPlan(userRow.id, userRow.plan === 'pro' ? 'free' : 'pro')}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #0f172a',
-                              background: '#fff',
-                            }}
-                          >
-                            Set {userRow.plan === 'pro' ? 'free' : 'pro'} plan
-                          </button>
-                          <button
-                            onClick={() => syncSubscription(userRow.id)}
-                            disabled={syncingUserId === userRow.id}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid #2563eb',
-                              background: syncingUserId === userRow.id ? '#bfdbfe' : '#2563eb',
-                              color: syncingUserId === userRow.id ? '#1e3a8a' : '#fff',
-                            }}
-                          >
-                            {syncingUserId === userRow.id ? 'Syncing…' : 'Refresh status'}
-                          </button>
-                        </div>
-                      </td>
+            <div style={{ display: 'grid', gap: '1.5rem' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0', color: '#0f172a' }}>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.email}</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.plan}</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.remainingDownloads}</th>
+                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.tokens}</th>
+                      <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>{adminCopy.usersColumns.actions}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {users.map((userRow) => {
+                      const planLabel = (userRow.plan ?? 'free').toUpperCase();
+                      const downloadsRemaining = userRow.remainingDownloads ?? 0;
+                      const tokens = userRow.tokens ?? 0;
+                      const isSelected = selectedUserId === userRow.id;
+                      return (
+                        <tr
+                          key={userRow.id}
+                          style={{
+                            borderBottom: '1px solid #f1f5f9',
+                            background: isSelected ? '#eef2ff' : 'transparent',
+                          }}
+                        >
+                          <td style={{ padding: '0.85rem 0.5rem' }}>
+                            <div style={{ display: 'grid', gap: '0.25rem' }}>
+                              <span style={{ fontWeight: 600, color: '#0f172a', wordBreak: 'break-word' }}>
+                                {userRow.email}
+                              </span>
+                              <span
+                                style={{
+                                  ...detailLabelStyle,
+                                  marginBottom: 0,
+                                  color: '#64748b',
+                                }}
+                              >
+                                {adminCopy.usersColumns.role}: {userRow.role}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.85rem 0.5rem' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '0.3rem 0.7rem',
+                                borderRadius: '999px',
+                                background: userRow.plan === 'pro' ? '#1d4ed8' : '#f1f5f9',
+                                color: userRow.plan === 'pro' ? '#fff' : '#1f2937',
+                                fontWeight: 600,
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              {planLabel}
+                            </span>
+                          </td>
+                          <td
+                            style={{
+                              padding: '0.85rem 0.5rem',
+                              fontWeight: 600,
+                              color: downloadsRemaining <= 1 ? '#b91c1c' : '#0f172a',
+                            }}
+                          >
+                            {downloadsRemaining}
+                          </td>
+                          <td
+                            style={{
+                              padding: '0.85rem 0.5rem',
+                              fontWeight: 600,
+                              color: tokens > 0 ? '#0f172a' : '#94a3b8',
+                            }}
+                          >
+                            {tokens}
+                          </td>
+                          <td style={{ padding: '0.85rem 0.5rem' }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                justifyContent: 'flex-end',
+                                gap: '0.35rem',
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUserId(userRow.id)}
+                                style={{
+                                  ...tableActionButton,
+                                  border: isSelected ? '1px solid #4338ca' : tableActionButton.border,
+                                  background: isSelected ? '#4338ca' : '#f8fafc',
+                                  color: isSelected ? '#fff' : '#0f172a',
+                                }}
+                              >
+                                {adminCopy.buttons.viewDetails}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => resetDownloads(userRow)}
+                                disabled={resettingUserId === userRow.id}
+                                style={{
+                                  ...tableActionButton,
+                                  border: '1px solid #0ea5e9',
+                                  background: resettingUserId === userRow.id ? '#bae6fd' : '#e0f2fe',
+                                  color: '#0c4a6e',
+                                  opacity: resettingUserId === userRow.id ? 0.85 : 1,
+                                }}
+                              >
+                                {resettingUserId === userRow.id
+                                  ? adminCopy.buttons.resetDownloadsLoading
+                                  : adminCopy.buttons.resetDownloads}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteUserAccount(userRow)}
+                                disabled={deletingUserId === userRow.id}
+                                style={{
+                                  ...tableActionButton,
+                                  border: '1px solid #ef4444',
+                                  background: deletingUserId === userRow.id ? '#fee2e2' : '#ef4444',
+                                  color: deletingUserId === userRow.id ? '#991b1b' : '#fff',
+                                  opacity: deletingUserId === userRow.id ? 0.9 : 1,
+                                }}
+                              >
+                                {deletingUserId === userRow.id
+                                  ? adminCopy.buttons.deleteUserLoading
+                                  : adminCopy.buttons.deleteUser}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div
+                style={{
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '1rem',
+                  background: '#fff',
+                  padding: '1.5rem',
+                  display: 'grid',
+                  gap: '1.25rem',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: '0.35rem' }}>
+                    <h3 style={{ margin: 0, color: '#0f172a' }}>{usersDetailCopy.title}</h3>
+                    <p style={{ margin: 0, color: '#475569' }}>{detailSubtitle}</p>
+                  </div>
+                  {selectedUser && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0.35rem 0.8rem',
+                        borderRadius: '999px',
+                        background: selectedUser.plan === 'pro' ? '#1d4ed8' : '#f1f5f9',
+                        color: selectedUser.plan === 'pro' ? '#fff' : '#1f2937',
+                        fontWeight: 600,
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {(selectedUser.plan ?? 'free').toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                {!selectedUser ? (
+                  <p style={{ margin: 0, color: '#64748b' }}>{usersDetailCopy.noSelection}</p>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gap: '1.25rem',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      }}
+                    >
+                      <div style={{ display: 'grid', gap: '0.75rem' }}>
+                        <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.profile}</h4>
+                        <dl style={{ margin: 0, display: 'grid', gap: '0.65rem' }}>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.email}</div>
+                            <p style={detailValueStyle}>{selectedUser.email}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.role}</div>
+                            <p style={detailValueStyle}>{selectedUser.role}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.createdAt}</div>
+                            <p style={detailValueStyle}>{formatDate(selectedUser.createdAt)}</p>
+                          </div>
+                        </dl>
+                      </div>
+                      <div style={{ display: 'grid', gap: '0.75rem' }}>
+                        <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.entitlements}</h4>
+                        <dl style={{ margin: 0, display: 'grid', gap: '0.65rem' }}>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.plan}</div>
+                            <p style={detailValueStyle}>{(selectedUser.plan ?? 'free').toUpperCase()}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.downloads}</div>
+                            <p style={detailValueStyle}>{selectedUser.remainingDownloads ?? 0}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.tokens}</div>
+                            <p style={detailValueStyle}>{selectedUser.tokens ?? 0}</p>
+                          </div>
+                          <div>
+                            <div style={detailLabelStyle}>{detailLabels.nextRefresh}</div>
+                            <p style={detailValueStyle}>{formatDateTime(selectedUser.nextRefreshAt ?? undefined)}</p>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.subscription}</h4>
+                      <dl
+                        style={{
+                          margin: 0,
+                          display: 'grid',
+                          gap: '0.65rem',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                        }}
+                      >
+                        <div>
+                          <div style={detailLabelStyle}>{detailLabels.subscriptionStatus}</div>
+                          <p style={detailValueStyle}>{selectedUser.subscriptionStatus ?? '—'}</p>
+                        </div>
+                        <div>
+                          <div style={detailLabelStyle}>{detailLabels.subscriptionPeriodEnd}</div>
+                          <p style={detailValueStyle}>{formatDate(selectedUser.subscriptionPeriodEnd)}</p>
+                        </div>
+                        <div>
+                          <div style={detailLabelStyle}>{detailLabels.stripeCustomerId}</div>
+                          <p style={detailValueStyle}>{selectedUser.stripeCustomerId ?? '—'}</p>
+                        </div>
+                      </dl>
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      <h4 style={{ margin: 0, color: '#1f2937' }}>{detailSections.actions}</h4>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '0.45rem',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => updateRole(selectedUser.id, 'user')}
+                          disabled={selectedUser.role === 'user'}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid rgba(148, 163, 184, 0.6)',
+                            opacity: selectedUser.role === 'user' ? 0.65 : 1,
+                            cursor: selectedUser.role === 'user' ? 'default' : 'pointer',
+                          }}
+                        >
+                          {adminCopy.buttons.setUser}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateRole(selectedUser.id, 'admin')}
+                          disabled={selectedUser.role === 'admin'}
+                          style={{
+                            ...actionButtonBase,
+                            background: '#1d4ed8',
+                            border: '1px solid #1d4ed8',
+                            color: '#fff',
+                            opacity: selectedUser.role === 'admin' ? 0.65 : 1,
+                            cursor: selectedUser.role === 'admin' ? 'default' : 'pointer',
+                          }}
+                        >
+                          {adminCopy.buttons.setAdmin}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPlan(selectedUser.id, selectedUser.plan === 'pro' ? 'free' : 'pro')}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid rgba(37, 99, 235, 0.35)',
+                            background: selectedUser.plan === 'pro' ? '#eef2ff' : '#2563eb',
+                            color: selectedUser.plan === 'pro' ? '#1e3a8a' : '#fff',
+                          }}
+                        >
+                          {selectedUser.plan === 'pro'
+                            ? adminCopy.buttons.setPlanToFree
+                            : adminCopy.buttons.setPlanToPro}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => syncSubscription(selectedUser.id)}
+                          disabled={syncingUserId === selectedUser.id}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid #2563eb',
+                            background: syncingUserId === selectedUser.id ? '#e0f2fe' : '#2563eb',
+                            color: syncingUserId === selectedUser.id ? '#1e40af' : '#fff',
+                            opacity: syncingUserId === selectedUser.id ? 0.85 : 1,
+                          }}
+                        >
+                          {syncingUserId === selectedUser.id
+                            ? adminCopy.buttons.refreshStatusLoading
+                            : adminCopy.buttons.refreshStatus}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => adjustDownloads(selectedUser.id, 10)}
+                          disabled={selectedUser.plan !== 'pro' || adjustingUserId === selectedUser.id}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid #16a34a',
+                            background: adjustingUserId === selectedUser.id ? '#dcfce7' : '#22c55e',
+                            color: adjustingUserId === selectedUser.id ? '#166534' : '#fff',
+                            opacity:
+                              selectedUser.plan !== 'pro'
+                                ? 0.45
+                                : adjustingUserId === selectedUser.id
+                                ? 0.85
+                                : 1,
+                            cursor: selectedUser.plan !== 'pro' ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {adjustingUserId === selectedUser.id
+                            ? `${adminCopy.buttons.addDownloads}…`
+                            : adminCopy.buttons.addDownloads}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => grantTokens(selectedUser.id, 5)}
+                          disabled={grantingTokensId === selectedUser.id}
+                          style={{
+                            ...actionButtonBase,
+                            border: '1px solid #a855f7',
+                            background: grantingTokensId === selectedUser.id ? '#ede9fe' : '#a855f7',
+                            color: grantingTokensId === selectedUser.id ? '#6b21a8' : '#fff',
+                            opacity: grantingTokensId === selectedUser.id ? 0.85 : 1,
+                          }}
+                        >
+                          {grantingTokensId === selectedUser.id
+                            ? `${adminCopy.buttons.addTokens}…`
+                            : adminCopy.buttons.addTokens}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </section>
@@ -475,24 +1200,26 @@ export function AdminDashboard() {
       {activeTab === 'downloads' && (
         <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}>
           <div>
-            <h2 style={{ margin: 0 }}>Download history</h2>
-            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{ADMIN_TABS.find((tab) => tab.id === 'downloads')?.description}</p>
+            <h2 style={{ margin: 0 }}>{adminCopy.downloadsHeading}</h2>
+            {downloadsTab?.description ? (
+              <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{downloadsTab.description}</p>
+            ) : null}
           </div>
           {loadingDownloads ? (
-            <p style={{ color: '#64748b' }}>Loading downloads…</p>
+            <p style={{ color: '#64748b' }}>{adminCopy.downloadsLoading}</p>
           ) : downloads.length === 0 ? (
-            <p style={{ color: '#64748b' }}>No downloads recorded yet.</p>
+            <p style={{ color: '#64748b' }}>{adminCopy.downloadsEmpty}</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
                 <thead>
                   <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Document</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>User</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Template</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Language</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Created</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.document}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.user}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.template}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.language}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.plan}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.downloadsColumns.created}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -519,19 +1246,21 @@ export function AdminDashboard() {
       {activeTab === 'subscriptions' && (
         <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}>
           <div>
-            <h2 style={{ margin: 0 }}>Subscriptions</h2>
-            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{ADMIN_TABS.find((tab) => tab.id === 'subscriptions')?.description}</p>
+            <h2 style={{ margin: 0 }}>{subscriptionsTab?.label ?? 'Subscriptions'}</h2>
+            {subscriptionsTab?.description ? (
+              <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{subscriptionsTab.description}</p>
+            ) : null}
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Email</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Customer reference</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Plan</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Status</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Period end</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Actions</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.subscriptionsColumns.email}</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.subscriptionsColumns.customer}</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.subscriptionsColumns.plan}</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.subscriptionsColumns.status}</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.subscriptionsColumns.periodEnd}</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.subscriptionsColumns.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -556,7 +1285,9 @@ export function AdminDashboard() {
                             color: syncingUserId === userRow.id ? '#1e3a8a' : '#fff',
                           }}
                         >
-                          {syncingUserId === userRow.id ? 'Syncing…' : 'Refresh status'}
+                          {syncingUserId === userRow.id
+                            ? adminCopy.buttons.refreshStatusLoading
+                            : adminCopy.buttons.refreshStatus}
                         </button>
                       </td>
                     </tr>
@@ -570,55 +1301,58 @@ export function AdminDashboard() {
       {activeTab === 'templates' && (
         <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', display: 'grid', gap: '1.25rem' }}>
           <div>
-            <h2 style={{ margin: 0 }}>Templates</h2>
-            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{ADMIN_TABS.find((tab) => tab.id === 'templates')?.description}</p>
+            <h2 style={{ margin: 0 }}>{adminCopy.templatesHeading}</h2>
+            <p style={{ margin: '0.5rem 0 0', color: '#475569' }}>{templatesTab?.description ?? adminCopy.templatesCopy}</p>
           </div>
           {loadingTemplates ? (
-            <p style={{ color: '#64748b' }}>Loading templates…</p>
+            <p style={{ color: '#64748b' }}>{adminCopy.templatesLoading}</p>
           ) : templates.length === 0 ? (
-            <p style={{ color: '#64748b' }}>No templates available.</p>
+            <p style={{ color: '#64748b' }}>{adminCopy.templatesEmpty}</p>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.85rem', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-              {templates.map((template) => (
-                <li
-                  key={template.id}
-                  style={{
-                    border: '1px solid #cbd5f5',
-                    borderRadius: '0.85rem',
-                    padding: '1rem',
-                    background: '#f8fafc',
-                    display: 'grid',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <div>
-                    <strong style={{ fontSize: '1.1rem' }}>{template.name}</strong>
-                    <div style={{ fontSize: '0.9rem', color: '#475569', marginTop: '0.35rem' }}>{template.description}</div>
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                    Kind: {template.kind.toUpperCase()} · Accent: {template.accentColor}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => duplicateTemplate(template)}
-                    style={{
-                      justifySelf: 'start',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.75rem',
-                      border: '1px solid #2563eb',
-                      background: '#2563eb',
-                      color: '#fff',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Duplicate template
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.templatesColumns.name}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.templatesColumns.kind}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.templatesColumns.description}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.templatesColumns.accent}</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.templatesColumns.actions}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {templates.map((template) => (
+                    <tr key={template.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>{template.name}</td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>{template.kind.toUpperCase()}</td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>{template.description || '—'}</td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>{template.accentColor}</td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => duplicateTemplate(template)}
+                          style={{
+                            padding: '0.4rem 0.9rem',
+                            borderRadius: '0.65rem',
+                            border: '1px solid #2563eb',
+                            background: '#2563eb',
+                            color: '#fff',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {adminCopy.duplicateTemplate}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       )}
-    </section>
+        </div>
+      </main>
+    </div>
   );
 }

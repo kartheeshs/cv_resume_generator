@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -16,6 +16,14 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 auth.useDeviceLanguage();
+
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch((error) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('Failed to enable persistent auth session', error);
+    }
+  });
+}
 
 export const db = getFirestore(app);
 

@@ -7,9 +7,10 @@ import { useAuth } from '@/hooks/useAuth';
 interface AuthGuardProps {
   children: ReactNode;
   requireAdmin?: boolean;
+  redirectTo?: string;
 }
 
-export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
+export function AuthGuard({ children, requireAdmin = false, redirectTo = '/login' }: AuthGuardProps) {
   const router = useRouter();
   const { user, loading, profile } = useAuth();
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -18,7 +19,7 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
     if (loading) return;
     if (!user) {
       setIsAuthorized(false);
-      router.replace('/login');
+      router.replace(redirectTo);
       return;
     }
     if (requireAdmin && profile?.role !== 'admin') {
@@ -27,7 +28,7 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
       return;
     }
     setIsAuthorized(true);
-  }, [loading, user, requireAdmin, profile, router]);
+  }, [loading, user, requireAdmin, profile, router, redirectTo]);
 
   if (loading || !isAuthorized) {
     return (

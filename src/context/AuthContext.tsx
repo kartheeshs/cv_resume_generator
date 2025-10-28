@@ -11,19 +11,37 @@ import {
 import {
   GoogleAuthProvider,
   User,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
   sendSignInLinkToEmail,
   signInWithEmailLink,
+  signInWithEmailAndPassword,
   signInWithPopup,
-  onAuthStateChanged,
   signOut as firebaseSignOut,
+  updateProfile,
 } from 'firebase/auth';
 import {
+  Timestamp,
   doc,
   getDoc,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/client';
+
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
+const FREE_DOWNLOAD_ALLOWANCE = 1;
+const PRO_WEEKLY_ALLOWANCE = 10;
+const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
+
+const isAdminEmail = (email: string | null | undefined) => {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+};
 
 type UserRole = 'admin' | 'user';
 
@@ -36,6 +54,8 @@ export interface UserProfile {
   entitlements?: {
     remainingDownloads: number;
     plan: 'free' | 'pro';
+    nextRefreshAt?: Date | null;
+    tokens?: number;
   };
   stripeCustomerId?: string;
   subscription?: {
@@ -53,8 +73,14 @@ interface AuthContextValue {
   sendEmailLink: (email: string) => Promise<void>;
   completeEmailLinkSignIn: (email: string) => Promise<User | null>;
   signInWithGoogle: () => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<UserProfile | null>;
+  signUpWithPassword: (
+    email: string,
+    password: string,
+    displayName?: string | null
+  ) => Promise<UserProfile | null>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<UserProfile | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -74,16 +100,76 @@ const resolveActionCodeBaseUrl = () => {
 async function ensureUserProfile(user: User): Promise<UserProfile> {
   const ref = doc(db, 'users', user.uid);
   const snap = await getDoc(ref);
+  const shouldElevateToAdmin = isAdminEmail(user.email);
 
   if (snap.exists()) {
     const data = snap.data();
-    const entitlementsData = {
-      plan: (data.entitlements?.plan as 'free' | 'pro') ?? 'free',
-      remainingDownloads:
-        typeof data.entitlements?.remainingDownloads === 'number'
-          ? data.entitlements.remainingDownloads
-          : 5,
-    } as UserProfile['entitlements'];
+    const resolvedPlan = (data.entitlements?.plan as 'free' | 'pro') ?? 'free';
+    const rawRemainingDownloads =
+      typeof data.entitlements?.remainingDownloads === 'number'
+        ? data.entitlements.remainingDownloads
+        : resolvedPlan === 'pro'
+        ? PRO_WEEKLY_ALLOWANCE
+        : FREE_DOWNLOAD_ALLOWANCE;
+    let normalizedDownloads = Math.max(0, rawRemainingDownloads);
+    const tokens =
+      typeof data.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
+    const rawNextRefresh = data.entitlements?.nextRefreshAt;
+    let nextRefreshAt: Date | null = null;
+    if (rawNextRefresh instanceof Date) {
+      nextRefreshAt = rawNextRefresh;
+    } else if (rawNextRefresh?.toDate) {
+      nextRefreshAt = rawNextRefresh.toDate();
+    }
+
+    const now = new Date();
+    let shouldPersistEntitlements = false;
+
+    if (resolvedPlan === 'free') {
+      if (normalizedDownloads > FREE_DOWNLOAD_ALLOWANCE) {
+        normalizedDownloads = FREE_DOWNLOAD_ALLOWANCE;
+        shouldPersistEntitlements = true;
+      }
+      if (nextRefreshAt !== null) {
+        nextRefreshAt = null;
+        shouldPersistEntitlements = true;
+      }
+    } else {
+      const refreshDue = !nextRefreshAt || nextRefreshAt.getTime() <= now.getTime();
+      if (refreshDue) {
+        normalizedDownloads = Math.max(normalizedDownloads, PRO_WEEKLY_ALLOWANCE);
+        nextRefreshAt = new Date(now.getTime() + WEEK_IN_MS);
+        shouldPersistEntitlements = true;
+      }
+    }
+
+    if (typeof data.entitlements?.tokens !== 'number') {
+      shouldPersistEntitlements = true;
+    }
+
+    if (shouldPersistEntitlements) {
+      const entitlementsPayload: Record<string, unknown> = {
+        ...(data.entitlements ?? {}),
+        plan: resolvedPlan,
+        remainingDownloads: normalizedDownloads,
+        tokens,
+        nextRefreshAt: nextRefreshAt ? Timestamp.fromDate(nextRefreshAt) : null,
+      };
+      await setDoc(
+        ref,
+        {
+          entitlements: entitlementsPayload,
+        },
+        { merge: true }
+      );
+    }
+
+    const entitlementsData: UserProfile['entitlements'] = {
+      plan: resolvedPlan,
+      remainingDownloads: normalizedDownloads,
+      tokens,
+      nextRefreshAt,
+    };
     const subscriptionData = data.subscription
       ? {
           id: (data.subscription.id as string | null) ?? null,
@@ -100,11 +186,17 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
               : undefined),
         }
       : undefined;
+    let resolvedRole: UserRole = (data.role as UserRole) ?? 'user';
+    if (shouldElevateToAdmin && resolvedRole !== 'admin') {
+      resolvedRole = 'admin';
+      await setDoc(ref, { role: resolvedRole }, { merge: true });
+    }
+
     return {
       uid: user.uid,
       email: user.email ?? '',
       displayName: user.displayName,
-      role: (data.role as UserRole) ?? 'user',
+      role: resolvedRole,
       createdAt: data.createdAt?.toDate?.(),
       entitlements: entitlementsData,
       stripeCustomerId: data.stripeCustomerId as string | undefined,
@@ -112,15 +204,18 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
     };
   }
 
+  const defaultRole: UserRole = shouldElevateToAdmin ? 'admin' : 'user';
   const profile: UserProfile = {
     uid: user.uid,
     email: user.email ?? '',
     displayName: user.displayName,
-    role: 'user',
+    role: defaultRole,
     createdAt: new Date(),
     entitlements: {
       plan: 'free',
-      remainingDownloads: 5,
+      remainingDownloads: FREE_DOWNLOAD_ALLOWANCE,
+      tokens: 0,
+      nextRefreshAt: null,
     },
     subscription: {
       id: null,
@@ -153,13 +248,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = useCallback(async (currentUser: User | null) => {
     if (!currentUser) {
       setProfile(null);
-      return;
+      return null;
     }
     try {
       const data = await ensureUserProfile(currentUser);
       setProfile(data);
+      return data;
     } catch (error) {
       console.error('Failed to load profile', error);
+      return null;
     }
   }, []);
 
@@ -218,6 +315,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loadProfile(result.user);
   }, [loadProfile]);
 
+  const signInWithPassword = useCallback(
+    async (email: string, password: string) => {
+      const normalizedEmail = email.trim();
+      const result = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      return loadProfile(result.user);
+    },
+    [loadProfile]
+  );
+
+  const signUpWithPassword = useCallback(
+    async (email: string, password: string, displayName?: string | null) => {
+      const normalizedEmail = email.trim();
+      const result = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      if (displayName) {
+        try {
+          await updateProfile(result.user, { displayName });
+        } catch (error) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('Failed to set display name', error);
+          }
+        }
+      }
+      return loadProfile(result.user);
+    },
+    [loadProfile]
+  );
+
   const signOut = useCallback(async () => {
     await firebaseSignOut(auth);
     setUser(null);
@@ -232,10 +356,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sendEmailLink,
       completeEmailLinkSignIn,
       signInWithGoogle,
+      signInWithPassword,
+      signUpWithPassword,
       signOut,
       refreshProfile: async () => loadProfile(auth.currentUser),
     }),
-    [user, profile, loading, sendEmailLink, completeEmailLinkSignIn, signInWithGoogle, signOut, loadProfile]
+    [
+      user,
+      profile,
+      loading,
+      sendEmailLink,
+      completeEmailLinkSignIn,
+      signInWithGoogle,
+      signInWithPassword,
+      signUpWithPassword,
+      signOut,
+      loadProfile,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

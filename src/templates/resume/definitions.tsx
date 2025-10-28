@@ -10,6 +10,7 @@ import { TurnerCvTemplate } from './components/TurnerCvTemplate';
 export interface ResumeTemplateDefinition extends ResumeTemplate {
   defaultContent: ResumeDraftContent;
   renderPreview: (content: ResumeDraftContent) => ReactNode;
+  previewDimensions?: { width: number; height: number };
 }
 
 const ariaContent: ResumeDraftContent = {
@@ -658,6 +659,7 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#0f172a',
     defaultContent: ariaContent,
     renderPreview: (content) => <AriaTemplate content={content} />,
+    previewDimensions: { width: 900, height: 1160 },
   },
   'sasha-wagner': {
     id: 'sasha-wagner',
@@ -667,6 +669,7 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#0f172a',
     defaultContent: sashaContent,
     renderPreview: (content) => <SashaTemplate content={content} />,
+    previewDimensions: { width: 900, height: 1160 },
   },
   'samantha-carter': {
     id: 'samantha-carter',
@@ -676,6 +679,7 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#0ea5e9',
     defaultContent: samanthaContent,
     renderPreview: (content) => <SamanthaTemplate content={content} />,
+    previewDimensions: { width: 900, height: 1160 },
   },
   'catherine-barnett': {
     id: 'catherine-barnett',
@@ -685,6 +689,7 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#1f2937',
     defaultContent: catherineContent,
     renderPreview: (content) => <CatherineTemplate content={content} />,
+    previewDimensions: { width: 900, height: 1160 },
   },
   'turner-global-cv': {
     id: 'turner-global-cv',
@@ -694,6 +699,7 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#2563eb',
     defaultContent: turnerContent,
     renderPreview: (content) => <TurnerCvTemplate content={content} />,
+    previewDimensions: { width: 900, height: 1280 },
   },
   'japanese-rirekisho': {
     id: 'japanese-rirekisho',
@@ -703,6 +709,7 @@ export const resumeTemplateDefinitions: Record<string, ResumeTemplateDefinition>
     accentColor: '#dc2626',
     defaultContent: japaneseContent,
     renderPreview: (content) => <JapaneseTemplate content={content} />,
+    previewDimensions: { width: 1080, height: 780 },
   },
 };
 
@@ -712,5 +719,10 @@ export function getResumeTemplateDefinition(id?: string) {
 }
 
 export const resumeTemplateMetadata: ResumeTemplate[] = Object.values(resumeTemplateDefinitions).map(
-  ({ defaultContent: _defaultContent, renderPreview: _renderPreview, ...metadata }) => metadata
+  ({
+    defaultContent: _defaultContent,
+    renderPreview: _renderPreview,
+    previewDimensions: _previewDimensions,
+    ...metadata
+  }) => metadata
 );
