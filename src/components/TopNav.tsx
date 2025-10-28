@@ -86,9 +86,6 @@ export function TopNav() {
                   {link.label}
                 </Link>
               ))}
-              <Link href="/dashboard" className={`${styles.navLink} ${styles.dashboardLink}`}>
-                {nav.dashboard}
-              </Link>
             </nav>
           )}
         </div>
@@ -108,25 +105,6 @@ export function TopNav() {
               </Link>
             </div>
           )}
-          <label className={styles.search}>
-            <svg
-              aria-hidden
-              width="18"
-              height="18"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M9.5 3.5a6 6 0 104.243 10.243l2.628 2.629a1 1 0 001.415-1.415l-2.629-2.628A6 6 0 009.5 3.5z"
-                stroke="#475569"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <input type="search" placeholder={nav.searchPlaceholder} />
-          </label>
           <label className={styles.language}>
             <span>{nav.languageLabel}</span>
             <select
@@ -155,6 +133,9 @@ export function TopNav() {
               {nav.signIn}
             </Link>
           )}
+          <Link href="/dashboard" className={`${styles.navLink} ${styles.dashboardLink}`}>
+            {nav.dashboard}
+          </Link>
         </div>
       </div>
 
@@ -174,9 +155,6 @@ export function TopNav() {
                 {link.label}
               </Link>
             ))}
-            <Link href="/dashboard" className={styles.mobileNavLink}>
-              {nav.dashboard}
-            </Link>
           </nav>
         )}
 
@@ -196,26 +174,6 @@ export function TopNav() {
         )}
 
         <div className={styles.mobileSection}>
-          <label className={styles.mobileSearch}>
-            <svg
-              aria-hidden
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M9.5 3.5a6 6 0 104.243 10.243l2.628 2.629a1 1 0 001.415-1.415l-2.629-2.628A6 6 0 009.5 3.5z"
-                stroke="#475569"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <input type="search" placeholder={nav.searchPlaceholder} />
-          </label>
-
           <label className={styles.mobileLanguage}>
             <span>{nav.languageLabel}</span>
             <select
@@ -248,6 +206,9 @@ export function TopNav() {
               {nav.signIn}
             </Link>
           )}
+          <Link href="/dashboard" className={styles.mobileNavLink}>
+            {nav.dashboard}
+          </Link>
         </div>
       </div>
     </header>

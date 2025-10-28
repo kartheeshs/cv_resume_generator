@@ -37,7 +37,7 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   font-weight: 600;
   margin-left: 1rem;
 }
@@ -48,6 +48,7 @@
   border-radius: 0.75rem;
   text-decoration: none;
   transition: background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .navLink:hover {
@@ -68,17 +69,16 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  flex: 1 1 auto;
+  gap: 0.65rem;
+  flex-wrap: nowrap;
+  margin-left: auto;
 }
 
 .workspaceActions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-right: 0.25rem;
 }
 
@@ -112,27 +112,6 @@
   background: #1d4ed8;
 }
 
-.search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  background: #f1f5f9;
-  border-radius: 0.75rem;
-  padding: 0.35rem 0.75rem;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  color: #475569;
-}
-
-.search input {
-  border: none;
-  background: transparent;
-  outline: none;
-  padding: 0.15rem 0 0.15rem 0.45rem;
-  font-size: 0.9rem;
-  color: #0f172a;
-  min-width: 160px;
-}
-
 .language {
   display: flex;
   align-items: center;
@@ -142,6 +121,7 @@
   border-radius: 0.75rem;
   padding: 0.35rem 0.65rem;
   color: #475569;
+  flex-shrink: 0;
 }
 
 .language span {
@@ -172,6 +152,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .primaryButton:hover {
@@ -258,26 +239,6 @@
 .mobilePrimary {
   width: 100%;
   justify-content: center;
-}
-
-.mobileSearch {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  background: #f1f5f9;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  color: #475569;
-}
-
-.mobileSearch input {
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 0.95rem;
-  color: #0f172a;
-  flex: 1;
 }
 
 .srOnly {
