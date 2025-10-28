@@ -1,45 +1,12 @@
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { ResumeDraftContent } from '@/types/resume';
 
-Font.register({
-  family: 'Inter',
-  fonts: [
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrKQ1nO0nDd3DTpQ.ttf',
-      fontWeight: 400,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCM3FwrKQ1nO0nKUFDd0g3p.ttf',
-      fontWeight: 600,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCM3FwrKQ1nO0nKUFTd0g3p.ttf',
-      fontWeight: 700,
-    },
-  ],
-});
-
-Font.register({
-  family: 'NotoSansJP',
-  fonts: [
-    {
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F63fjptAgt5VM-kVkqdyU8n1i8q0g.ttf',
-      fontWeight: 400,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F6pfjptAgt5VM-kVkqdyU8n_qUwwpY.ttf',
-      fontWeight: 500,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F6ofjptAgt5VM-kVkqdyU8n1o0_uYq2.ttf',
-      fontWeight: 700,
-    },
-  ],
-});
-
+// Google-hosted font files were previously registered here, but external downloads
+// can fail in restricted or offline environments. Using the built-in Helvetica font
+// ensures PDF generation works reliably without remote dependencies.
 const baseStyles = StyleSheet.create({
   page: {
-    fontFamily: 'Inter',
+    fontFamily: 'Helvetica',
     fontSize: 11,
     color: '#1f2937',
     padding: 36,
@@ -65,11 +32,8 @@ const baseStyles = StyleSheet.create({
   },
 });
 
-function getFontFamily(content: ResumeDraftContent) {
-  if (content.language?.toLowerCase().startsWith('ja')) {
-    return 'NotoSansJP';
-  }
-  return 'Inter';
+function getFontFamily(_content: ResumeDraftContent) {
+  return 'Helvetica';
 }
 
 function renderExperience(experience: ResumeDraftContent['workExperiences'][number]) {
