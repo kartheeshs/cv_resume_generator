@@ -88,7 +88,6 @@ export interface ResumeTemplate {
 
 export interface Entitlement {
   plan: 'free' | 'pro';
-  remainingDownloads: number;
+  remainingDownloads: number | null;
   nextRefreshAt?: Date | null;
-  tokens?: number;
 }

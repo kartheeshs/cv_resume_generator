@@ -35,8 +35,7 @@ const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '')
   .filter(Boolean);
 
 const FREE_DOWNLOAD_ALLOWANCE = 1;
-const PRO_WEEKLY_ALLOWANCE = 10;
-const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
+const PRO_ALLOWANCE_UNLIMITED: number | null = null;
 
 const isAdminEmail = (email: string | null | undefined) => {
   if (!email) return false;
@@ -52,10 +51,9 @@ export interface UserProfile {
   role: UserRole;
   createdAt?: Date;
   entitlements?: {
-    remainingDownloads: number;
+    remainingDownloads: number | null;
     plan: 'free' | 'pro';
     nextRefreshAt?: Date | null;
-    tokens?: number;
   };
   stripeCustomerId?: string;
   subscription?: {
@@ -108,12 +106,15 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
     const rawRemainingDownloads =
       typeof data.entitlements?.remainingDownloads === 'number'
         ? data.entitlements.remainingDownloads
+        : data.entitlements?.remainingDownloads === null
+        ? null
         : resolvedPlan === 'pro'
-        ? PRO_WEEKLY_ALLOWANCE
+        ? PRO_ALLOWANCE_UNLIMITED
         : FREE_DOWNLOAD_ALLOWANCE;
-    let normalizedDownloads = Math.max(0, rawRemainingDownloads);
-    const tokens =
-      typeof data.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
+
+    let normalizedDownloads: number | null =
+      resolvedPlan === 'pro' ? PRO_ALLOWANCE_UNLIMITED : Math.max(0, rawRemainingDownloads ?? 0);
+
     const rawNextRefresh = data.entitlements?.nextRefreshAt;
     let nextRefreshAt: Date | null = null;
     if (rawNextRefresh instanceof Date) {
@@ -122,11 +123,10 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
       nextRefreshAt = rawNextRefresh.toDate();
     }
 
-    const now = new Date();
     let shouldPersistEntitlements = false;
 
     if (resolvedPlan === 'free') {
-      if (normalizedDownloads > FREE_DOWNLOAD_ALLOWANCE) {
+      if ((normalizedDownloads ?? 0) > FREE_DOWNLOAD_ALLOWANCE) {
         normalizedDownloads = FREE_DOWNLOAD_ALLOWANCE;
         shouldPersistEntitlements = true;
       }
@@ -135,16 +135,14 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
         shouldPersistEntitlements = true;
       }
     } else {
-      const refreshDue = !nextRefreshAt || nextRefreshAt.getTime() <= now.getTime();
-      if (refreshDue) {
-        normalizedDownloads = Math.max(normalizedDownloads, PRO_WEEKLY_ALLOWANCE);
-        nextRefreshAt = new Date(now.getTime() + WEEK_IN_MS);
+      if (normalizedDownloads !== PRO_ALLOWANCE_UNLIMITED) {
+        normalizedDownloads = PRO_ALLOWANCE_UNLIMITED;
         shouldPersistEntitlements = true;
       }
-    }
-
-    if (typeof data.entitlements?.tokens !== 'number') {
-      shouldPersistEntitlements = true;
+      if (nextRefreshAt !== null) {
+        nextRefreshAt = null;
+        shouldPersistEntitlements = true;
+      }
     }
 
     if (shouldPersistEntitlements) {
@@ -152,7 +150,6 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
         ...(data.entitlements ?? {}),
         plan: resolvedPlan,
         remainingDownloads: normalizedDownloads,
-        tokens,
         nextRefreshAt: nextRefreshAt ? Timestamp.fromDate(nextRefreshAt) : null,
       };
       await setDoc(
@@ -167,7 +164,6 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
     const entitlementsData: UserProfile['entitlements'] = {
       plan: resolvedPlan,
       remainingDownloads: normalizedDownloads,
-      tokens,
       nextRefreshAt,
     };
     const subscriptionData = data.subscription
@@ -214,7 +210,6 @@ async function ensureUserProfile(user: User): Promise<UserProfile> {
     entitlements: {
       plan: 'free',
       remainingDownloads: FREE_DOWNLOAD_ALLOWANCE,
-      tokens: 0,
       nextRefreshAt: null,
     },
     subscription: {

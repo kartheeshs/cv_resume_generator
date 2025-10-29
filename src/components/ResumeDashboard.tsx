@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Timestamp,
@@ -14,7 +15,6 @@ import {
   orderBy,
   limit,
   query,
-  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -232,6 +232,8 @@ export function ResumeDashboard() {
   const { copy } = useLocalization();
   const dashboardCopy = copy.resumeDashboard;
   const statuses = dashboardCopy.statuses;
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [drafts, setDrafts] = useState<ResumeDraft[]>([]);
   const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
   const [form, setForm] = useState<DraftFormState>(() => {
@@ -254,13 +256,18 @@ export function ResumeDashboard() {
   const [startingCheckout, setStartingCheckout] = useState(false);
   const [syncingSubscription, setSyncingSubscription] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
-  const [redeemingToken, setRedeemingToken] = useState(false);
+  const [processedSessionId, setProcessedSessionId] = useState<string | null>(null);
 
   const entitlements = profile?.entitlements;
-  const downloadsDepleted = Boolean(entitlements) && (entitlements?.remainingDownloads ?? 0) <= 0;
-  const tokensAvailable = entitlements?.tokens ?? 0;
+  const isProPlan = entitlements?.plan === 'pro';
+  const remainingDownloads = entitlements?.remainingDownloads ?? null;
+  const downloadsDepleted =
+    Boolean(entitlements) && !isProPlan && (remainingDownloads ?? 0) <= 0;
   const nextRefreshAt = entitlements?.nextRefreshAt ?? null;
   const nextRefreshDisplay = nextRefreshAt ? nextRefreshAt.toLocaleString() : '—';
+  const downloadsDisplay = isProPlan
+    ? dashboardCopy.unlimitedDownloads
+    : String(remainingDownloads ?? 0);
   const navMenu = dashboardCopy.sectionLabels as { id: DashboardSection; label: string; description: string }[];
   const activeMenu = navMenu.find((item) => item.id === activeSection);
   useEffect(() => {
@@ -316,6 +323,87 @@ export function ResumeDashboard() {
 
     loadTemplates();
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const sessionId = searchParams?.get('session_id');
+    if (!sessionId || processedSessionId === sessionId || syncingSubscription) {
+      return;
+    }
+
+    const syncSubscription = async () => {
+      setSyncingSubscription(true);
+      try {
+        const response = await fetch(`/api/billing/session?session_id=${encodeURIComponent(sessionId)}`);
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              status?: string;
+              subscriptionId?: string | null;
+              subscriptionStatus?: string | null;
+              customerId?: string | null;
+              currentPeriodEnd?: string | null;
+            }
+          | null;
+
+        if (!response.ok || !payload) {
+          console.error('Failed to load checkout session details', payload);
+          setStatus(statuses.subscriptionRefreshFailed);
+          return;
+        }
+
+        if (payload.status !== 'complete') {
+          setStatus(statuses.checkoutCancelled);
+          return;
+        }
+
+        const updates: Record<string, unknown> = {
+          'entitlements.plan': 'pro',
+          'entitlements.remainingDownloads': null,
+          'entitlements.nextRefreshAt': null,
+          'subscription.id': payload.subscriptionId ?? null,
+          'subscription.status': payload.subscriptionStatus ?? 'active',
+          'subscription.lastSyncedAt': serverTimestamp(),
+        };
+
+        if (payload.currentPeriodEnd) {
+          updates['subscription.currentPeriodEnd'] = Timestamp.fromDate(
+            new Date(payload.currentPeriodEnd)
+          );
+        } else {
+          updates['subscription.currentPeriodEnd'] = null;
+        }
+
+        if (payload.customerId) {
+          updates['stripeCustomerId'] = payload.customerId;
+        }
+
+        await updateDoc(doc(db, 'users', user.uid), updates);
+        await refreshProfile();
+        setStatus(statuses.subscriptionUpgraded);
+      } catch (error) {
+        console.error('Failed to sync subscription', error);
+        setStatus(statuses.subscriptionRefreshFailed);
+      } finally {
+        setProcessedSessionId(sessionId);
+        setSyncingSubscription(false);
+        router.replace('/dashboard', { scroll: false });
+      }
+    };
+
+    syncSubscription();
+  }, [
+    processedSessionId,
+    refreshProfile,
+    router,
+    searchParams,
+    statuses.checkoutCancelled,
+    statuses.subscriptionRefreshFailed,
+    statuses.subscriptionUpgraded,
+    user,
+    syncingSubscription,
+  ]);
 
   useEffect(() => {
     if (!user) {
@@ -698,65 +786,66 @@ export function ResumeDashboard() {
     }
   };
 
-  const redeemTokenForDownload = async () => {
+  const startCheckout = useCallback(async () => {
     if (!user) {
-      setStatus(statuses.signInRequired);
+      setStatus(statuses.billingSignInRequired);
       return;
     }
-    if (!entitlements) {
+    if (!profile) {
       setStatus(statuses.missingEntitlements);
       return;
     }
-    if ((entitlements.tokens ?? 0) <= 0) {
-      setStatus(statuses.noTokens);
-      return;
-    }
 
-    setRedeemingToken(true);
+    setStartingCheckout(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        const ref = doc(db, 'users', user.uid);
-        const snapshot = await transaction.get(ref);
-        const data = snapshot.data();
-        const currentTokens =
-          typeof data?.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
-        if (currentTokens <= 0) {
-          throw new Error('NO_TOKENS');
-        }
-        const currentDownloads =
-          typeof data?.entitlements?.remainingDownloads === 'number'
-            ? data.entitlements.remainingDownloads
-            : 0;
-        transaction.update(ref, {
-          'entitlements.tokens': currentTokens - 1,
-          'entitlements.remainingDownloads': currentDownloads + 1,
-        });
+      const response = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.uid,
+          email: profile.email ?? user.email ?? undefined,
+          customerId: profile.stripeCustomerId ?? undefined,
+        }),
       });
-      await refreshProfile();
-      setStatus(statuses.tokenRedeemed);
-    } catch (error) {
-      if ((error as Error)?.message === 'NO_TOKENS') {
-        setStatus(statuses.noTokens);
-      } else {
-        console.error('Failed to redeem token', error);
-        setStatus(statuses.tokenRedeemFailed);
+
+      if (response.status === 503) {
+        setStatus(statuses.billingDisabled);
+        return;
       }
+
+      const payload = (await response.json().catch(() => null)) as
+        | { url?: string; message?: string }
+        | null;
+
+      if (!response.ok) {
+        console.error('Failed to create checkout session', payload);
+        setStatus(statuses.checkoutFailed);
+        return;
+      }
+
+      if (!payload?.url) {
+        setStatus(statuses.checkoutFailed);
+        return;
+      }
+
+      window.location.href = payload.url;
+    } catch (error) {
+      console.error('Failed to start checkout', error);
+      setStatus(statuses.billingError);
     } finally {
-      setRedeemingToken(false);
+      setStartingCheckout(false);
     }
-  };
+  }, [profile, statuses, user]);
 
   const generatePdf = async () => {
     if (!entitlements) {
       setStatus(statuses.missingEntitlements);
       return;
     }
-    if (entitlements.remainingDownloads <= 0) {
-      if ((entitlements.tokens ?? 0) > 0) {
-        setStatus(statuses.downloadTokensAvailable);
-      } else {
-        setStatus(statuses.downloadLimitReached);
-      }
+    if (!isProPlan && (entitlements.remainingDownloads ?? 0) <= 0) {
+      setStatus(statuses.downloadLimitReached);
       return;
     }
 
@@ -810,7 +899,7 @@ export function ResumeDashboard() {
         }
       }
 
-      if (user) {
+      if (user && !isProPlan) {
         try {
           await updateDoc(doc(db, 'users', user.uid), {
             'entitlements.remainingDownloads': increment(-1),
@@ -929,16 +1018,16 @@ export function ResumeDashboard() {
                   </div>
                   <div
                     style={{
-                      background: downloadsDepleted ? '#fee2e2' : '#ecfeff',
+                      background: isProPlan ? '#dcfce7' : downloadsDepleted ? '#fee2e2' : '#ecfeff',
                       borderRadius: '0.75rem',
                       padding: '0.65rem 0.95rem',
                       display: 'grid',
                       gap: '0.2rem',
-                      minWidth: '160px',
-                      border: downloadsDepleted
+                      minWidth: '180px',
+                      border: downloadsDepleted && !isProPlan
                         ? '1px solid #fecaca'
                         : '1px solid rgba(14, 165, 233, 0.35)',
-                      color: downloadsDepleted ? '#b91c1c' : '#0f172a',
+                      color: downloadsDepleted && !isProPlan ? '#b91c1c' : '#0f172a',
                     }}
                   >
                     <span
@@ -950,25 +1039,43 @@ export function ResumeDashboard() {
                     >
                       {dashboardCopy.downloadsLeftLabel}
                     </span>
-                    <span style={{ fontWeight: 700 }}>{entitlements.remainingDownloads}</span>
+                    <span style={{ fontWeight: 700 }}>{downloadsDisplay}</span>
                   </div>
-                  {entitlements.plan !== 'pro' && (
-                    <Link
-                      href="/#pricing"
-                      prefetch={false}
+                  {isProPlan ? (
+                    <div
+                      style={{
+                        background: '#ecfdf5',
+                        borderRadius: '0.75rem',
+                        padding: '0.75rem 1rem',
+                        color: '#047857',
+                        fontWeight: 600,
+                        minWidth: '220px',
+                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                      }}
+                    >
+                      {dashboardCopy.unlimitedDownloadsDescription}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startCheckout}
+                      disabled={startingCheckout}
                       style={{
                         border: '1px solid rgba(37, 99, 235, 0.4)',
-                        background: '#2563eb',
-                        color: '#fff',
+                        background: startingCheckout ? '#bfdbfe' : '#2563eb',
+                        color: startingCheckout ? '#1e3a8a' : '#fff',
                         padding: '0.55rem 1.1rem',
                         borderRadius: '0.75rem',
                         fontWeight: 600,
                         textDecoration: 'none',
                         boxShadow: '0 12px 28px -18px rgba(37, 99, 235, 0.6)',
+                        cursor: startingCheckout ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      {dashboardCopy.subscribeCta}
-                    </Link>
+                      {startingCheckout
+                        ? dashboardCopy.subscribeCtaLoading
+                        : dashboardCopy.subscribeCta}
+                    </button>
                   )}
                 </>
               ) : (
@@ -1052,66 +1159,50 @@ export function ResumeDashboard() {
                       style={{
                         padding: '1rem',
                         borderRadius: '0.75rem',
-                        background: downloadsDepleted ? '#fee2e2' : '#ecfeff',
+                        background: isProPlan ? '#dcfce7' : downloadsDepleted ? '#fee2e2' : '#ecfeff',
                         minWidth: '200px',
-                        color: downloadsDepleted ? '#b91c1c' : '#0f172a',
-                        border: downloadsDepleted ? '1px solid #fecaca' : 'none',
+                        color: downloadsDepleted && !isProPlan ? '#b91c1c' : '#0f172a',
+                        border: downloadsDepleted && !isProPlan ? '1px solid #fecaca' : 'none',
                       }}
                     >
                       <strong>{dashboardCopy.downloadsLeftLabel}</strong>
-                      <div style={{ fontSize: '1.2rem' }}>{entitlements.remainingDownloads}</div>
+                      <div style={{ fontSize: '1.2rem' }}>{downloadsDisplay}</div>
                     </div>
-                    <div
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '0.75rem',
-                        background: '#fefce8',
-                        minWidth: '240px',
-                        display: 'grid',
-                        gap: '0.6rem',
-                        border: '1px solid rgba(202, 138, 4, 0.25)',
-                      }}
-                    >
-                      <div>
-                        <strong>{dashboardCopy.tokenBalanceLabel}</strong>
-                        <div style={{ fontSize: '1.2rem' }}>{tokensAvailable}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={redeemTokenForDownload}
-                        disabled={redeemingToken || tokensAvailable <= 0}
+                    {isProPlan ? (
+                      <div
                         style={{
-                          border: 'none',
-                          background: tokensAvailable > 0 ? '#f59e0b' : '#f1f5f9',
-                          color: tokensAvailable > 0 ? '#fff' : '#64748b',
-                          padding: '0.65rem 1rem',
-                          borderRadius: '0.65rem',
+                          padding: '1rem',
+                          borderRadius: '0.75rem',
+                          background: '#ecfdf5',
+                          minWidth: '240px',
+                          color: '#047857',
+                          border: '1px solid rgba(16, 185, 129, 0.35)',
                           fontWeight: 600,
-                          cursor: redeemingToken || tokensAvailable <= 0 ? 'not-allowed' : 'pointer',
-                          boxShadow:
-                            tokensAvailable > 0
-                              ? '0 18px 36px -24px rgba(245, 158, 11, 0.65)'
-                              : 'none',
                         }}
                       >
-                        {redeemingToken ? dashboardCopy.tokenRedeemLoading : dashboardCopy.tokenRedeemCta}
-                      </button>
-                      <span style={{ fontSize: '0.85rem', color: '#854d0e' }}>
-                        {tokensAvailable <= 0 ? dashboardCopy.tokenEmpty : dashboardCopy.tokenInfo}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '0.75rem',
-                        background: '#f8fafc',
-                        minWidth: '220px',
-                        border: '1px solid rgba(148, 163, 184, 0.3)',
-                      }}
-                    >
-                      <strong>{dashboardCopy.nextRefreshLabel}</strong>
-                      <div style={{ fontSize: '1.1rem' }}>{nextRefreshDisplay}</div>
-                    </div>
+                        {dashboardCopy.unlimitedDownloadsDescription}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: '1rem',
+                          borderRadius: '0.75rem',
+                          background: '#f8fafc',
+                          minWidth: '240px',
+                          border: '1px solid rgba(148, 163, 184, 0.3)',
+                          display: 'grid',
+                          gap: '0.4rem',
+                        }}
+                      >
+                        <strong>{dashboardCopy.nextRefreshLabel}</strong>
+                        <div style={{ fontSize: '1.05rem' }}>
+                          {nextRefreshAt ? nextRefreshDisplay : dashboardCopy.freePlanRefreshInfo}
+                        </div>
+                        <span style={{ fontSize: '0.85rem', color: '#475569' }}>
+                          {dashboardCopy.downloadLimitNotice}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 {downloadsDepleted && (
@@ -1119,21 +1210,15 @@ export function ResumeDashboard() {
                     style={{
                       padding: '0.75rem 1rem',
                       borderRadius: '0.75rem',
-                      background: tokensAvailable > 0 ? '#fef9c3' : '#fef2f2',
-                      color: tokensAvailable > 0 ? '#92400e' : '#b91c1c',
+                      background: '#fef2f2',
+                      color: '#b91c1c',
                       fontWeight: 600,
                       display: 'grid',
                       gap: '0.35rem',
                     }}
                   >
-                    <span>
-                      {tokensAvailable > 0
-                        ? statuses.downloadTokensAvailable
-                        : dashboardCopy.downloadLimitExceeded}
-                    </span>
-                    <span style={{ fontWeight: 500 }}>
-                      {tokensAvailable > 0 ? dashboardCopy.tokenInfo : dashboardCopy.downloadResetByAdmin}
-                    </span>
+                    <span>{dashboardCopy.downloadLimitExceeded}</span>
+                    <span style={{ fontWeight: 500 }}>{dashboardCopy.downloadResetByAdmin}</span>
                   </div>
                 )}
                 {status && (
