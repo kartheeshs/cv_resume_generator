@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+
+import { getStripeClient } from '@/lib/stripe/server';
 
 export const runtime = 'nodejs';
 
@@ -20,10 +23,17 @@ const DEFAULT_STRIPE_PRICE_INTERVAL = process.env.STRIPE_PRICE_INTERVAL ?? 'week
 const DEFAULT_STRIPE_PRODUCT_NAME =
   process.env.STRIPE_PRICE_PRODUCT_NAME ?? 'Career Studio GM7 Growth Subscription';
 
+const SUPPORTED_INTERVALS: ReadonlyArray<Stripe.PriceCreateParams.Recurring.Interval> = [
+  'day',
+  'week',
+  'month',
+  'year',
+];
+
 let cachedPriceId: string | null | undefined;
 
-async function resolveStripePriceId(secretKey: string): Promise<string | null> {
-  if (cachedPriceId) {
+async function resolveStripePriceId(stripe: Stripe): Promise<string | null> {
+  if (typeof cachedPriceId === 'string') {
     return cachedPriceId;
   }
 
@@ -36,66 +46,44 @@ async function resolveStripePriceId(secretKey: string): Promise<string | null> {
   const lookupKey = DEFAULT_STRIPE_PRICE_LOOKUP_KEY;
 
   try {
-    const search = new URLSearchParams({ limit: '1' });
-    search.append('lookup_keys[]', lookupKey);
-    const response = await fetch(`https://api.stripe.com/v1/prices?${search.toString()}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-      },
+    const prices = await stripe.prices.list({
+      lookup_keys: [lookupKey],
+      limit: 1,
     });
 
-    const payload = (await response.json().catch(() => null)) as
-      | {
-          data?: Array<{ id?: string | null }>;
-          error?: { message?: string };
-        }
-      | null;
-
-    if (response.ok && payload?.data?.length && payload.data[0]?.id) {
-      cachedPriceId = payload.data[0].id ?? null;
-      if (cachedPriceId) {
-        return cachedPriceId;
-      }
-    } else if (!response.ok) {
-      console.error('Stripe price lookup failed', payload);
+    if (prices.data.length && prices.data[0]?.id) {
+      cachedPriceId = prices.data[0].id;
+      return cachedPriceId;
     }
   } catch (error) {
-    console.error('Stripe price lookup request failed', error);
+    console.error('Stripe price lookup failed', error);
   }
 
   try {
     const resolvedUnitAmount = Number.isFinite(DEFAULT_STRIPE_PRICE_AMOUNT)
       ? Math.max(0, Math.round(DEFAULT_STRIPE_PRICE_AMOUNT))
       : 1000;
-    const params = new URLSearchParams();
-    params.append('unit_amount', String(resolvedUnitAmount));
-    params.append('currency', DEFAULT_STRIPE_PRICE_CURRENCY);
-    params.append('recurring[interval]', DEFAULT_STRIPE_PRICE_INTERVAL);
-    params.append('lookup_key', lookupKey);
-    params.append('product_data[name]', DEFAULT_STRIPE_PRODUCT_NAME);
-    params.append('tax_behavior', 'exclusive');
 
-    const response = await fetch('https://api.stripe.com/v1/prices', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
+    const resolvedInterval = SUPPORTED_INTERVALS.includes(
+      DEFAULT_STRIPE_PRICE_INTERVAL as Stripe.PriceCreateParams.Recurring.Interval
+    )
+      ? (DEFAULT_STRIPE_PRICE_INTERVAL as Stripe.PriceCreateParams.Recurring.Interval)
+      : 'week';
+
+    const price = await stripe.prices.create({
+      unit_amount: resolvedUnitAmount,
+      currency: DEFAULT_STRIPE_PRICE_CURRENCY,
+      recurring: { interval: resolvedInterval },
+      lookup_key: lookupKey,
+      product_data: { name: DEFAULT_STRIPE_PRODUCT_NAME },
+      tax_behavior: 'exclusive',
     });
 
-    const payload = (await response.json().catch(() => null)) as { id?: string; error?: { message?: string } } | null;
-
-    if (!response.ok || !payload?.id) {
-      console.error('Stripe price creation failed', payload);
-      return null;
-    }
-
-    cachedPriceId = payload.id;
+    cachedPriceId = price.id;
     return cachedPriceId;
   } catch (error) {
-    console.error('Stripe price creation request failed', error);
+    console.error('Stripe price creation failed', error);
+    cachedPriceId = undefined;
     return null;
   }
 }
@@ -110,7 +98,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const priceId = await resolveStripePriceId(secretKey);
+  const stripe = getStripeClient(secretKey);
+
+  const priceId = await resolveStripePriceId(stripe);
 
   if (!priceId) {
     return NextResponse.json(
@@ -135,43 +125,38 @@ export async function POST(request: NextRequest) {
 
   const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
-  const params = new URLSearchParams();
-  params.append('mode', 'subscription');
-  params.append('success_url', `${origin}/dashboard?session_id={CHECKOUT_SESSION_ID}`);
-  params.append('cancel_url', `${origin}/dashboard`);
-  params.append('line_items[0][price]', priceId);
-  params.append('line_items[0][quantity]', '1');
-  params.append('allow_promotion_codes', 'true');
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    mode: 'subscription',
+    success_url: `${origin}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${origin}/dashboard`,
+    line_items: [
+      {
+        price: priceId,
+        quantity: 1,
+      },
+    ],
+    allow_promotion_codes: true,
+  };
 
   if (body.customerId) {
-    params.append('customer', body.customerId);
+    sessionParams.customer = body.customerId;
   } else if (body.email) {
-    params.append('customer_email', body.email);
+    sessionParams.customer_email = body.email;
   }
 
   if (body.userId) {
-    params.append('metadata[user_id]', body.userId);
+    sessionParams.metadata = { user_id: body.userId };
   }
 
   try {
-    const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
-    });
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
-    const payload = (await response.json().catch(() => null)) as { url?: string; error?: { message?: string } } | null;
-
-    if (!response.ok || !payload?.url) {
-      const message = payload?.error?.message ?? 'Unable to create checkout session.';
-      console.error('Stripe checkout creation failed', payload);
-      return NextResponse.json({ message }, { status: 500 });
+    if (!session?.url || !session?.id) {
+      console.error('Stripe checkout creation returned invalid session', session);
+      return NextResponse.json({ message: 'Unable to create checkout session.' }, { status: 500 });
     }
 
-    return NextResponse.json({ url: payload.url });
+    return NextResponse.json({ url: session.url, sessionId: session.id });
   } catch (error) {
     console.error('Stripe checkout request failed', error);
     return NextResponse.json({ message: 'Unable to connect to Stripe.' }, { status: 502 });

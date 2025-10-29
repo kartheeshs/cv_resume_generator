@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+
+import { getStripeClient } from '@/lib/stripe/server';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +16,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: 'Stripe billing is not configured.' }, { status: 503 });
   }
 
+  const stripe = getStripeClient(secretKey);
+
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('session_id');
 
@@ -21,51 +26,33 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await fetch(
-      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=subscription`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-        },
-      }
-    );
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription'],
+    });
 
-    const payload = (await response.json().catch(() => null)) as
-      | {
-          id?: string;
-          status?: string;
-          customer?: string | { id?: string };
-          subscription?: {
-            id?: string;
-            status?: string;
-            current_period_end?: number;
-            customer?: string;
-          };
-        }
-      | { error?: { message?: string } }
-      | null;
+    const subscriptionObject =
+      typeof session.subscription === 'string' ? null : (session.subscription as Stripe.Subscription | null);
 
-    if (!response.ok || !payload || 'error' in (payload as { error?: { message?: string } })) {
-      const message = (payload as { error?: { message?: string } })?.error?.message ?? 'Unable to load session.';
-      console.error('Stripe session lookup failed', payload);
-      return NextResponse.json({ message }, { status: 502 });
-    }
+    const rawCustomer =
+      typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id ?? null;
 
-    const subscription = payload.subscription ?? null;
-    const customerId =
-      typeof payload.customer === 'string'
-        ? payload.customer
-        : payload.customer?.id ?? subscription?.customer ?? null;
+    const subscriptionCustomer =
+      typeof subscriptionObject?.customer === 'string'
+        ? subscriptionObject.customer
+        : subscriptionObject?.customer?.id ?? null;
 
-    const currentPeriodEnd = subscription?.current_period_end
-      ? new Date(subscription.current_period_end * 1000).toISOString()
+    const customerId = rawCustomer ?? subscriptionCustomer ?? null;
+
+    const currentPeriodEnd = subscriptionObject?.current_period_end
+      ? new Date(subscriptionObject.current_period_end * 1000).toISOString()
       : null;
 
     return NextResponse.json({
-      status: payload.status,
-      subscriptionId: subscription?.id ?? null,
-      subscriptionStatus: subscription?.status ?? null,
+      status: session.status,
+      subscriptionId: subscriptionObject?.id ?? null,
+      subscriptionStatus: subscriptionObject?.status ?? null,
       customerId,
       currentPeriodEnd,
     });

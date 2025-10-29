@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import {
   Timestamp,
   addDoc,
@@ -76,6 +77,21 @@ function renderTemplateThumbnail(definition: ResumeTemplateDefinition) {
     });
   }
   return preview;
+}
+
+let stripePromise: Promise<Stripe | null> | null = null;
+
+function getStripeClient() {
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  if (!publishableKey) {
+    return null;
+  }
+
+  if (!stripePromise) {
+    stripePromise = loadStripe(publishableKey);
+  }
+
+  return stripePromise;
 }
 
 function createId(prefix: string) {
@@ -799,7 +815,7 @@ export function ResumeDashboard() {
       }
 
       const payload = (await response.json().catch(() => null)) as
-        | { url?: string; message?: string }
+        | { url?: string | null; sessionId?: string | null; message?: string }
         | null;
 
       if (!response.ok) {
@@ -808,12 +824,24 @@ export function ResumeDashboard() {
         return;
       }
 
-      if (!payload?.url) {
-        setStatus(statuses.checkoutFailed);
+      const stripeClientPromise = payload?.sessionId ? getStripeClient() : null;
+      if (payload?.sessionId && stripeClientPromise) {
+        const stripeClient = await stripeClientPromise;
+        if (stripeClient) {
+          const { error } = await stripeClient.redirectToCheckout({ sessionId: payload.sessionId });
+          if (!error) {
+            return;
+          }
+          console.error('Stripe redirect failed', error);
+        }
+      }
+
+      if (payload?.url) {
+        window.location.href = payload.url;
         return;
       }
 
-      window.location.href = payload.url;
+      setStatus(statuses.checkoutFailed);
     } catch (error) {
       console.error('Failed to start checkout', error);
       setStatus(statuses.billingError);
