@@ -577,23 +577,6 @@ export function ResumeDashboard() {
     [refreshProfile, user]
   );
 
-  const startCheckout = useCallback(async () => {
-    if (!user) {
-      setStatus(statuses.upgradeSignInRequired);
-      return;
-    }
-    setStartingCheckout(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      setStatus(statuses.checkoutDemo);
-    } catch (error) {
-      console.error('Demo checkout trigger failed', error);
-      setStatus(statuses.checkoutFailed);
-    } finally {
-      setStartingCheckout(false);
-    }
-  }, [user]);
-
   const openBillingPortal = useCallback(async () => {
     if (!user) {
       setStatus(statuses.billingSignInRequired);
