@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
+const DEFAULT_STRIPE_SECRET_KEY =
+  process.env.NODE_ENV === 'production'
+    ? undefined
+    : 'sk_test_51SMrPSRuLo7evHJI0rlQCC52vXJhmCnd2CQbEfCU6PhtPLdMBRgkvi4uaa5BFx8V3OXI75KBbxwRBXOkmVXTSiSd00tmb4ztX2';
+
 export async function GET(request: NextRequest) {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const secretKey = process.env.STRIPE_SECRET_KEY ?? DEFAULT_STRIPE_SECRET_KEY;
   if (!secretKey) {
     return NextResponse.json({ message: 'Stripe billing is not configured.' }, { status: 503 });
   }
