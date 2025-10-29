@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import {
   Timestamp,
@@ -100,6 +100,36 @@ function createId(prefix: string) {
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
+
+const DASHBOARD_AD_SLOT_STYLE: CSSProperties = {
+  border: '2px dashed rgba(148, 163, 184, 0.45)',
+  borderRadius: '1rem',
+  padding: '1.25rem',
+  background: '#f8fafc',
+  display: 'grid',
+  gap: '0.55rem',
+};
+
+const DASHBOARD_AD_LABEL_STYLE: CSSProperties = {
+  fontSize: '0.75rem',
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  fontWeight: 700,
+  color: '#1d4ed8',
+};
+
+const DASHBOARD_AD_TEXT_STYLE: CSSProperties = {
+  margin: 0,
+  color: '#475569',
+  lineHeight: 1.5,
+  fontSize: '0.95rem',
+};
+
+const DASHBOARD_AD_NOTE_STYLE: CSSProperties = {
+  color: '#334155',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+};
 
 function emptyExperience(): ExperienceEntry {
   return {
@@ -1143,6 +1173,22 @@ export function ResumeDashboard() {
             )}
           </div>
         </header>
+        <aside
+          aria-label="Dashboard banner advertisement"
+          role="complementary"
+          style={{
+            ...DASHBOARD_AD_SLOT_STYLE,
+            border: '2px dashed rgba(59, 130, 246, 0.45)',
+            background: 'rgba(191, 219, 254, 0.55)',
+            boxShadow: '0 24px 65px -50px rgba(37, 99, 235, 0.35)',
+          }}
+        >
+          <span style={DASHBOARD_AD_LABEL_STYLE}>Ad Space</span>
+          <p style={DASHBOARD_AD_TEXT_STYLE}>
+            Showcase a premium sponsor or partner integration to help members unlock more career opportunities.
+          </p>
+          <span style={{ ...DASHBOARD_AD_NOTE_STYLE, color: '#1d4ed8' }}>Ideal size: 970 × 90</span>
+        </aside>
         <div style={{ display: 'grid', gap: '1.75rem' }}>
           {activeSection === 'resume' && (
             <>
@@ -1247,7 +1293,23 @@ export function ResumeDashboard() {
                 )}
               </div>
 
-            {viewMode === 'preview' ? (
+              <aside
+                aria-label="Resume editor sidebar advertisement"
+                role="complementary"
+                style={{
+                  ...DASHBOARD_AD_SLOT_STYLE,
+                  border: '2px dashed rgba(251, 146, 60, 0.45)',
+                  background: 'rgba(254, 243, 199, 0.6)',
+                }}
+              >
+                <span style={{ ...DASHBOARD_AD_LABEL_STYLE, color: '#c2410c' }}>Ad Space</span>
+                <p style={DASHBOARD_AD_TEXT_STYLE}>
+                  Introduce interview coaching, portfolio audits, or premium resume review services alongside the editor.
+                </p>
+                <span style={{ ...DASHBOARD_AD_NOTE_STYLE, color: '#b45309' }}>Suggested size: 300 × 250</span>
+              </aside>
+
+              {viewMode === 'preview' ? (
           <div
             style={{
               background: '#fff',
