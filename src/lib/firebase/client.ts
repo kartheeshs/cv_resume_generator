@@ -12,7 +12,11 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const appName = process.env.NEXT_PUBLIC_FIREBASE_APP_NAME || 'cv-resume-generator';
+
+const existingApp = getApps().find((candidate) => candidate.name === appName);
+
+const app = existingApp ? getApp(appName) : initializeApp(firebaseConfig, appName);
 
 export const auth = getAuth(app);
 auth.useDeviceLanguage();
