@@ -283,7 +283,12 @@ function contentContainsJapanese(content: ResumeDraftContent): boolean {
   return false;
 }
 
-function getFontFamily(content: ResumeDraftContent, options?: { preferJapanese?: boolean }) {
+type FontPreference = {
+  preferJapanese?: boolean;
+  style?: 'sans' | 'serif';
+};
+
+function getFontFamily(content: ResumeDraftContent, options?: FontPreference) {
   ensurePdfFontsRegistered();
 
   if (
@@ -291,6 +296,10 @@ function getFontFamily(content: ResumeDraftContent, options?: { preferJapanese?:
     (options?.preferJapanese || content.language?.toLowerCase().startsWith('ja') || contentContainsJapanese(content))
   ) {
     return JAPANESE_FONT_FAMILY;
+  }
+
+  if (options?.style === 'serif') {
+    return 'Times-Roman';
   }
 
   return DEFAULT_FONT_FAMILY;
@@ -453,56 +462,456 @@ const ariaStyles = StyleSheet.create({
   },
 });
 
-function renderExperience(experience: ResumeDraftContent['workExperiences'][number]) {
-  return (
-    <View key={experience.id} style={{ marginBottom: 14 }}>
-      <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-        <View>
-          <Text style={{ fontSize: 12, fontWeight: 700 }}>{experience.title}</Text>
-          <Text style={{ fontSize: 11, color: '#475569' }}>{experience.company}</Text>
-        </View>
-        <Text style={{ fontSize: 10, color: '#64748b' }}>
-          {[experience.startDate, experience.endDate].filter(Boolean).join(' – ')}
-        </Text>
-      </View>
-      {experience.location ? (
-        <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{experience.location}</Text>
-      ) : null}
-      <View style={baseStyles.bulletList}>
-        {experience.bullets.map((bullet, index) => (
-          <Text key={index} style={baseStyles.bulletItem}>
-            • {bullet}
-          </Text>
-        ))}
-      </View>
-    </View>
-  );
-}
+const sashaStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    padding: 24,
+  },
+  container: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  sidebar: {
+    width: 226,
+    backgroundColor: '#10172a',
+    color: '#f8fafc',
+    paddingVertical: 48,
+    paddingHorizontal: 36,
+    justifyContent: 'flex-start',
+  },
+  sidebarHeading: {
+    fontSize: 30,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: 3,
+  },
+  sidebarRole: {
+    fontSize: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 4.8,
+    marginTop: 12,
+  },
+  sidebarSectionTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: 4.8,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  sidebarList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  sidebarListItem: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+  },
+  sidebarContact: {
+    marginTop: 20,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    lineHeight: 1.6,
+  },
+  main: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    paddingVertical: 56,
+    paddingHorizontal: 60,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeading: {
+    fontSize: 14,
+    letterSpacing: 4.8,
+    textTransform: 'uppercase',
+    color: '#0f172a',
+    fontWeight: 600,
+    marginBottom: 16,
+  },
+  experience: {
+    marginBottom: 20,
+  },
+  experienceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12,
+  },
+  experienceTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+  },
+  experienceDates: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: 600,
+  },
+  bulletList: {
+    marginTop: 10,
+    marginLeft: 14,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  bulletText: {
+    fontSize: 11,
+    lineHeight: 1.6,
+    color: '#1e293b',
+  },
+  skillChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+  },
+  skillChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginHorizontal: 6,
+    marginBottom: 10,
+  },
+});
 
-function renderEducation(entry: ResumeDraftContent['education'][number]) {
-  return (
-    <View key={entry.id} style={{ marginBottom: 10 }}>
-      <Text style={{ fontSize: 12, fontWeight: 700 }}>{entry.school}</Text>
-      <Text style={{ fontSize: 11, color: '#475569' }}>{entry.degree}</Text>
-      <Text style={{ fontSize: 10, color: '#64748b' }}>
-        {[entry.startDate, entry.endDate].filter(Boolean).join(' – ')}
-      </Text>
-      {entry.location ? <Text style={{ fontSize: 10, color: '#94a3b8' }}>{entry.location}</Text> : null}
-    </View>
-  );
-}
+const samanthaStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    padding: 24,
+  },
+  container: {
+    flex: 1,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  header: {
+    backgroundColor: '#0f172a',
+    color: '#ffffff',
+    paddingVertical: 40,
+    paddingHorizontal: 48,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  headerName: {
+    fontSize: 30,
+    fontWeight: 700,
+  },
+  headerRole: {
+    fontSize: 18,
+    color: '#e2e8f0',
+  },
+  headerContact: {
+    fontSize: 12,
+    textAlign: 'right',
+    lineHeight: 1.6,
+  },
+  summary: {
+    marginTop: 18,
+    fontSize: 12,
+    lineHeight: 1.7,
+    color: '#e2e8f0',
+  },
+  body: {
+    paddingVertical: 40,
+    paddingHorizontal: 48,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeading: {
+    fontSize: 18,
+    color: '#0f172a',
+    fontWeight: 700,
+    marginBottom: 16,
+  },
+  experience: {
+    marginBottom: 24,
+  },
+  experienceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 12,
+  },
+  experienceTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+  },
+  experienceDates: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: 600,
+  },
+  bulletList: {
+    marginTop: 10,
+    marginLeft: 16,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  bulletText: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 1.6,
+  },
+  educationEntry: {
+    marginBottom: 18,
+  },
+  educationSchool: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  educationDegree: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+    marginTop: 2,
+  },
+  educationDates: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  skillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  skillChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#e0f2fe',
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  certificateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  certificateName: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#0f172a',
+  },
+  certificateDate: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  list: {
+    marginLeft: 16,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+});
 
-function renderList(items: string[]) {
-  return (
-    <View style={baseStyles.bulletList}>
-      {items.map((item) => (
-        <Text key={item} style={baseStyles.bulletItem}>
-          • {item}
-        </Text>
-      ))}
-    </View>
-  );
-}
+const catherineStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    padding: 28,
+  },
+  container: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    overflow: 'hidden',
+  },
+  sidebar: {
+    width: 236,
+    backgroundColor: '#1f2937',
+    color: '#f8fafc',
+    paddingVertical: 48,
+    paddingHorizontal: 40,
+  },
+  sidebarName: {
+    fontSize: 26,
+    fontWeight: 700,
+    color: '#f8fafc',
+  },
+  sidebarRole: {
+    fontSize: 15,
+    color: '#e5e7eb',
+    marginTop: 8,
+  },
+  sidebarContact: {
+    marginTop: 18,
+    fontSize: 12,
+    lineHeight: 1.6,
+  },
+  sidebarHeading: {
+    marginTop: 24,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 4.8,
+  },
+  sidebarList: {
+    marginTop: 10,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  sidebarListItem: {
+    fontSize: 11,
+    lineHeight: 1.5,
+  },
+  main: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    paddingVertical: 56,
+    paddingHorizontal: 64,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeading: {
+    fontSize: 20,
+    color: '#1f2937',
+    fontWeight: 700,
+    marginBottom: 16,
+  },
+  paragraph: {
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 1.7,
+  },
+  experience: {
+    marginBottom: 26,
+  },
+  experienceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  experienceTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#1f2937',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#4b5563',
+  },
+  experienceLocation: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  experienceDates: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: 600,
+  },
+  bulletList: {
+    marginTop: 12,
+    marginLeft: 18,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  bulletText: {
+    fontSize: 11,
+    color: '#4b5563',
+    lineHeight: 1.7,
+  },
+  educationEntry: {
+    marginBottom: 18,
+  },
+  educationDegree: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#1f2937',
+  },
+  educationSchool: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#4b5563',
+    marginTop: 2,
+  },
+  educationDates: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  skillChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  skillChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: '#dbeafe',
+    color: '#1d4ed8',
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  certificateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  certificateName: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#1f2937',
+  },
+  certificateDate: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+});
 
 function getListSection(content: ResumeDraftContent, id: string) {
   return content.listSections.find((section) => section.id === id);
@@ -975,179 +1384,11 @@ function ariaPdf(content: ResumeDraftContent) {
   );
 }
 
+
 function sashaPdf(content: ResumeDraftContent) {
-  return (
-    <Document>
-      <Page
-        size="A4"
-        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
-      >
-        <View style={{ flexDirection: 'row', height: '100%' }}>
-          <View style={{ width: '32%', backgroundColor: '#0f172a', color: '#f8fafc', padding: 28 }}>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>{content.profile.fullName.toUpperCase()}</Text>
-            <Text style={{ fontSize: 12, letterSpacing: 2, marginTop: 6 }}>{content.profile.role.toUpperCase()}</Text>
-            <View style={{ marginTop: 14, fontSize: 10, lineHeight: 1.5 }}>
-              {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.linkedin]
-                .filter(Boolean)
-                .map((value) => (
-                  <Text key={value}>{value}</Text>
-                ))}
-            </View>
-            {content.education.length > 0 && (
-              <View style={{ marginTop: 20 }}>
-                <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>Education</Text>
-                {content.education.map((entry) => (
-                  <View key={entry.id} style={{ marginTop: 10 }}>
-                    <Text style={{ fontSize: 10, fontWeight: 600 }}>{entry.degree}</Text>
-                    <Text style={{ fontSize: 10 }}>{entry.school}</Text>
-                    <Text style={{ fontSize: 9, opacity: 0.7 }}>
-                      {[entry.startDate, entry.endDate].filter(Boolean).join(' – ')}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            {content.listSections
-              .filter((section) => section.placement !== 'main')
-              .map((section) => (
-                <View key={section.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{section.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(section.items)}</View>
-                </View>
-              ))}
-            {content.skillGroups
-              .filter((group) => group.placement !== 'main')
-              .map((group) => (
-                <View key={group.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{group.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(group.skills)}</View>
-                </View>
-              ))}
-          </View>
-
-          <View style={{ flex: 1, padding: 36 }}>
-            {content.objective && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Career Objective</Text>
-                <Text>{content.objective}</Text>
-              </View>
-            )}
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Work Experience</Text>
-              {content.workExperiences.map((experience) => renderExperience(experience))}
-            </View>
-            {content.skillGroups.some((group) => group.placement === 'main') && (
-              <View>
-                <Text style={baseStyles.sectionHeading}>Skills</Text>
-                {renderList(
-                  content.skillGroups
-                    .filter((group) => group.placement === 'main')
-                    .flatMap((group) => group.skills)
-                )}
-              </View>
-            )}
-          </View>
-        </View>
-      </Page>
-    </Document>
-  );
-}
-
-function samanthaPdf(content: ResumeDraftContent) {
-  return (
-    <Document>
-      <Page
-        size="A4"
-        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
-      >
-        <View style={{ backgroundColor: '#0f172a', color: '#fff', padding: 32 }}>
-          <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-            <View>
-              <Text style={{ fontSize: 20, fontWeight: 700 }}>{content.profile.fullName}</Text>
-              <Text style={{ fontSize: 12, opacity: 0.8 }}>{content.profile.role}</Text>
-            </View>
-            <View style={{ fontSize: 10, textAlign: 'right' }}>
-              {[content.profile.contact.phone, content.profile.contact.email, content.profile.contact.location, content.profile.contact.linkedin]
-                .filter(Boolean)
-                .map((value) => (
-                  <Text key={value}>{value}</Text>
-                ))}
-            </View>
-          </View>
-          {content.summary ? <Text style={{ marginTop: 12, fontSize: 11 }}>{content.summary}</Text> : null}
-        </View>
-
-        <View style={{ padding: 32, display: 'flex', gap: 16 }}>
-          <View style={{ marginBottom: 16 }}>
-            <Text style={baseStyles.sectionHeading}>Work History</Text>
-            {content.workExperiences.map((experience) => renderExperience(experience))}
-          </View>
-          {content.education.length > 0 && (
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Education</Text>
-              {content.education.map((entry) => renderEducation(entry))}
-            </View>
-          )}
-          {content.skillGroups.length > 0 && (
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Skills</Text>
-              {renderList(content.skillGroups.flatMap((group) => group.skills))}
-            </View>
-          )}
-          {content.certifications.length > 0 && (
-            <View>
-              <Text style={baseStyles.sectionHeading}>Certificates</Text>
-              <View style={baseStyles.bulletList}>
-                {content.certifications.map((certificate) => (
-                  <Text key={certificate.id} style={baseStyles.bulletItem}>
-                    • {certificate.name} {certificate.date ? `(${certificate.date})` : ''}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          )}
-        </View>
-      </Page>
-    </Document>
-  );
-}
-
-function japanesePdf(content: ResumeDraftContent) {
-  const furigana = getListItem(content, 'japanese-furigana', 0, 'やまだ たろう');
-  const birth = getListItem(content, 'japanese-personal', 0, '1995年4月12日生（満28歳）');
-  const gender = getListItem(content, 'japanese-personal', 1, '男');
-  const commute = getListItem(content, 'japanese-personal', 2, '通勤時間 45分');
-  const address = getListSection(content, 'japanese-address');
-  const dependents = getListItem(content, 'japanese-household', 0, '扶養家族（配偶者を除く） 1人');
-  const spouse = getListItem(content, 'japanese-household', 1, '配偶者 あり・扶養義務 あり');
-  const emergency = getListSection(content, 'japanese-emergency');
-  const hobbies = getListSection(content, 'japanese-hobbies');
-  const licenses = getListSection(content, 'japanese-licenses');
-  const remarks = getListSection(content, 'japanese-remarks');
-
-  const [defaultYear, defaultMonth, defaultDay] = getDefaultDateParts();
-  const [applicationYear, applicationMonth, applicationDay] = parseYearMonthDay(
-    getListItem(content, 'japanese-application-date', 0, `${defaultYear}-${defaultMonth}-${defaultDay}`)
-  );
-
-  const educationEntries = [...content.education].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
-  const experienceEntries = [...content.workExperiences].sort((a, b) =>
-    (a.startDate ?? '').localeCompare(b.startDate ?? '')
-  );
-
-  const renderHistoryRow = (key: string, year: string, month: string, description: string) => (
-    <View key={key} style={japaneseStyles.historyRow}>
-      <View style={japaneseStyles.historyYear}>
-        <Text style={japaneseStyles.historyLabelText}>{year}</Text>
-      </View>
-      <View style={japaneseStyles.historyMonth}>
-        <Text style={japaneseStyles.historyLabelText}>{month}</Text>
-      </View>
-      <View style={japaneseStyles.historyDescription}>
-        <Text style={japaneseStyles.historyDescriptionText}>{description}</Text>
-      </View>
-    </View>
-  );
+  const sidebarSkills = content.skillGroups.filter((group) => group.placement !== 'main');
+  const mainSkills = content.skillGroups.filter((group) => group.placement === 'main');
+  const sidebarSections = content.listSections.filter((section) => section.placement !== 'main');
 
   return (
     <Document>
@@ -1155,459 +1396,129 @@ function japanesePdf(content: ResumeDraftContent) {
         size="A4"
         style={{
           ...baseStyles.page,
-          backgroundColor: '#fff',
-          fontFamily: getFontFamily(content, { preferJapanese: true }),
-        }}
-      >
-        <View style={japaneseStyles.container}>
-          <View style={[japaneseStyles.section, japaneseStyles.header]}>
-            <View style={japaneseStyles.headerLeft}>
-              <Text style={japaneseStyles.title}>履歴書</Text>
-              <View style={japaneseStyles.nameGrid}>
-                <View style={[japaneseStyles.gridRow, { borderTopWidth: 0 }]}>
-                  <View style={japaneseStyles.gridLabel}>
-                    <Text>ふりがな</Text>
-                  </View>
-                  <View style={japaneseStyles.gridValue}>
-                    <Text style={japaneseStyles.furiganaText}>{furigana}</Text>
-                  </View>
-                </View>
-                <View style={japaneseStyles.gridRow}>
-                  <View style={japaneseStyles.gridLabel}>
-                    <Text>氏名</Text>
-                  </View>
-                  <View style={japaneseStyles.gridValue}>
-                    <Text style={japaneseStyles.nameText}>{content.profile.fullName}</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-            <View style={japaneseStyles.headerRight}>
-              <View style={japaneseStyles.applicationDateRow}>
-                <Text style={{ fontSize: 10 }}>(</Text>
-                <View style={[japaneseStyles.dateBox, { width: 56, height: 32, marginLeft: 4 }]}>
-                  <Text style={{ fontSize: 11 }}>{applicationYear}</Text>
-                </View>
-                <Text style={{ fontSize: 10, marginLeft: 4 }}>年</Text>
-                <View style={[japaneseStyles.dateBox, { width: 36, height: 32, marginLeft: 4 }]}>
-                  <Text style={{ fontSize: 11 }}>{applicationMonth}</Text>
-                </View>
-                <Text style={{ fontSize: 10, marginLeft: 4 }}>月</Text>
-                <View style={[japaneseStyles.dateBox, { width: 36, height: 32, marginLeft: 4 }]}>
-                  <Text style={{ fontSize: 11 }}>{applicationDay}</Text>
-                </View>
-                <Text style={{ fontSize: 10, marginLeft: 4 }}>日現在 )</Text>
-              </View>
-              <View style={[japaneseStyles.photoBox, { marginTop: 12 }]}>
-                <Text>写真貼付</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={{ flexDirection: 'row' }}>
-              <View style={[japaneseStyles.gridLabel, { height: 'auto', paddingVertical: 10 }]}>
-                <Text>生年月日</Text>
-              </View>
-              <View style={[japaneseStyles.gridValue, { flexDirection: 'row', flexWrap: 'wrap' }]}>
-                <Text>{birth}</Text>
-                <Text style={{ marginLeft: 12 }}>性別 {gender}</Text>
-                <Text style={{ marginLeft: 12 }}>{commute}</Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: japaneseBorderColor }}>
-              <View style={[japaneseStyles.gridLabel, { height: 'auto', paddingVertical: 10 }]}>
-                <Text>現住所</Text>
-              </View>
-              <View style={[japaneseStyles.gridValue, { paddingVertical: 10 }]}>
-                {address?.items.map((line) => (
-                  <Text key={line}>{line}</Text>
-                ))}
-                {content.profile.contact.phone ? <Text>TEL {content.profile.contact.phone}</Text> : null}
-                {content.profile.contact.email ? <Text>E-mail {content.profile.contact.email}</Text> : null}
-              </View>
-            </View>
-          </View>
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>学歴・職歴</Text>
-            </View>
-            {educationEntries.map((education) => {
-              const [year, month] = parseYearMonth(education.startDate);
-              return renderHistoryRow(education.id, year, month, `${education.school} ${education.degree}`);
-            })}
-            <View style={japaneseStyles.historyRow}>
-              <View style={japaneseStyles.historyYear}>
-                <Text style={japaneseStyles.historyLabelText}> </Text>
-              </View>
-              <View style={japaneseStyles.historyMonth}>
-                <Text style={japaneseStyles.historyLabelText}> </Text>
-              </View>
-              <View style={japaneseStyles.historyDescription}>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: '#6b7280',
-                    textAlign: 'right',
-                    width: '100%',
-                  }}
-                >
-                  以上
-                </Text>
-              </View>
-            </View>
-            {experienceEntries.map((experience) => {
-              const [year, month] = parseYearMonth(experience.startDate);
-              return renderHistoryRow(experience.id, year, month, `${experience.company} ${experience.title}`);
-            })}
-          </View>
-
-          {licenses ? (
-            <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>免許・資格</Text>
-            </View>
-              {licenses.items.map((item, index) => {
-                const [date, description] = item.split('|');
-                const [year, month] = parseYearMonth(date);
-                const descriptionText = (description ?? item).trim();
-                return renderHistoryRow(`${licenses.id}-${index}`, year, month, descriptionText);
-              })}
-            </View>
-          ) : null}
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>本人希望欄</Text>
-            </View>
-            <View style={japaneseStyles.multiLine}>
-              <Text style={japaneseStyles.multiLineText}>{(remarks?.items ?? ['特記事項なし']).join('\n')}</Text>
-            </View>
-          </View>
-        </View>
-      </Page>
-
-      <Page size="A4" style={{ ...baseStyles.page, backgroundColor: '#fff' }}>
-        <View style={japaneseStyles.container}>
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>志望動機</Text>
-            </View>
-            <View style={japaneseStyles.multiLine}>
-              <Text style={japaneseStyles.multiLineText}>
-                {content.objective ?? '御社での業務に貢献できるよう尽力いたします。'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>自己PR</Text>
-            </View>
-            <View style={japaneseStyles.multiLine}>
-              <Text style={japaneseStyles.multiLineText}>
-                {content.summary ?? '成果にこだわり行動する姿勢を強みにしています。'}
-              </Text>
-            </View>
-          </View>
-
-          {hobbies ? (
-            <View style={[japaneseStyles.section, japaneseStyles.table]}>
-              <View style={japaneseStyles.tableHeading}>
-                <Text style={japaneseStyles.tableHeadingText}>趣味・特技</Text>
-              </View>
-              <View style={[japaneseStyles.multiLine, { rowGap: 4 }]}>
-                {hobbies.items.map((item) => (
-                  <Text key={item} style={{ fontSize: 11 }}>
-                    ・{item}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          ) : null}
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>通勤・家族状況</Text>
-            </View>
-            <View style={japaneseStyles.dualCellRow}>
-              <View style={[japaneseStyles.dualCell, { borderRightWidth: 1, borderRightColor: japaneseBorderColor }]}>
-                <Text style={japaneseStyles.dualCellText}>{dependents}</Text>
-              </View>
-              <View style={japaneseStyles.dualCell}>
-                <Text style={japaneseStyles.dualCellText}>{spouse}</Text>
-              </View>
-            </View>
-          </View>
-
-          {emergency ? (
-            <View style={[japaneseStyles.section, japaneseStyles.table]}>
-              <View style={japaneseStyles.tableHeading}>
-                <Text style={japaneseStyles.tableHeadingText}>緊急連絡先</Text>
-              </View>
-              <View style={japaneseStyles.multiLine}>
-                {emergency.items.map((item, index) => (
-                  <Text key={`${emergency.id}-${index}`} style={japaneseStyles.multiLineText}>
-                    {item}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          ) : null}
-        </View>
-      </Page>
-    </Document>
-  );
-}
-
-function turnerPdf(content: ResumeDraftContent) {
-  const coursesLeft = getListSection(content, 'turner-courses-left')?.items ?? [
-    'Immersive Cost Analytics (LSE)',
-    'Financial Statement Analysis (UCSF)',
-    'Advanced Excel for Financial Modeling',
-    'Derivatives (Options Trading Institute)',
-  ];
-  const coursesRight = getListSection(content, 'turner-courses-right')?.items ?? [
-    'Advanced Public Sector Financial Reporting and Analysis',
-    'Corporate Finance',
-    'Financial Risk Management (GARP)',
-    'Portfolio Simulation Workshop',
-  ];
-  const achievementsLeft = getListSection(content, 'turner-achievements-left')?.items ?? [
-    'Civic Service Awardee (2018) — Santa Monica Community',
-    'Leadership Fellowship (2019) — Berkeley Haas Center',
-  ];
-  const achievementsRight = getListSection(content, 'turner-achievements-right')?.items ?? [
-    'Peer Inc. Group of Companies Special Recognition (2017)',
-    'Young Entrepreneur Summit Winner (2016)',
-  ];
-  const interests = getListSection(content, 'turner-interests')?.items ?? [
-    'Machine Learning',
-    'Calligraphy',
-    'Astronomy',
-    'Photography',
-  ];
-  const references = getListSection(content, 'turner-references')?.items ?? [];
-
-  const volunteerExperiences = content.workExperiences.filter(
-    (experience) => experience.category === 'Volunteer Experience'
-  );
-  const professionalExperiences = content.workExperiences.filter(
-    (experience) => experience.category !== 'Volunteer Experience'
-  );
-
-  const languageGroup = content.skillGroups.find((group) => group.id === 'turner-languages');
-  const certificationGroup = content.skillGroups.find((group) => group.id === 'turner-certifications');
-
-  const renderExperience = (experience: ResumeDraftContent['workExperiences'][number]) => (
-    <View key={experience.id} style={turnerStyles.experience}>
-      <View style={turnerStyles.experienceHeader}>
-        <Text style={turnerStyles.experienceTitle}>{experience.title}</Text>
-        <Text style={turnerStyles.experienceDates}>
-          {[experience.startDate, experience.endDate].filter(Boolean).join(' – ')}
-        </Text>
-      </View>
-      <Text style={turnerStyles.experienceCompany}>{experience.company}</Text>
-      {experience.location ? <Text style={turnerStyles.experienceLocation}>{experience.location}</Text> : null}
-      {experience.bullets.map((bullet, index) => (
-        <Text key={`${experience.id}-bullet-${index}`} style={turnerStyles.bullet}>
-          • {bullet}
-        </Text>
-      ))}
-    </View>
-  );
-
-  return (
-    <Document>
-      <Page
-        size="A4"
-        style={{
-          ...baseStyles.page,
-          fontFamily: getFontFamily(content),
           padding: 0,
-          backgroundColor: '#e2e8f0',
+          fontFamily: getFontFamily(content, { style: 'serif' }),
+          backgroundColor: '#f1f5f9',
         }}
       >
-        <View style={turnerStyles.background}>
-          <View style={turnerStyles.sheet}>
-            <View style={turnerStyles.header}>
-              <View>
-                <Text style={turnerStyles.name}>{content.profile.fullName}</Text>
-                <Text style={turnerStyles.role}>{content.profile.role}</Text>
-                {content.profile.tagline ? (
-                  <Text style={turnerStyles.tagline}>{content.profile.tagline}</Text>
-                ) : null}
-              </View>
-              <View style={turnerStyles.contact}>
-                {[content.profile.contact.phone, content.profile.contact.email, content.profile.contact.location, content.profile.contact.website]
+        <View style={sashaStyles.background}>
+          <View style={sashaStyles.container}>
+            <View style={sashaStyles.sidebar}>
+              <Text style={sashaStyles.sidebarHeading}>{content.profile.fullName.toUpperCase()}</Text>
+              {content.profile.role ? (
+                <Text style={sashaStyles.sidebarRole}>{content.profile.role.toUpperCase()}</Text>
+              ) : null}
+
+              <View style={sashaStyles.sidebarContact}>
+                {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.linkedin, content.profile.contact.website]
                   .filter(Boolean)
                   .map((value) => (
-                    <Text key={value}>{value}</Text>
-                  ))}
-              </View>
-            </View>
-
-            <View style={turnerStyles.divider} />
-
-            <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Courses & Training</Text>
-              <View style={turnerStyles.twoColumn}>
-                <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
-                  {coursesLeft.map((item, index) => (
-                    <Text key={`course-left-${index}`} style={turnerStyles.listItem}>
-                      {item}
+                    <Text key={value} style={sashaStyles.sidebarListItem}>
+                      {value}
                     </Text>
                   ))}
-                </View>
-                <View style={turnerStyles.column}>
-                  {coursesRight.map((item, index) => (
-                    <Text key={`course-right-${index}`} style={turnerStyles.listItem}>
-                      {item}
-                    </Text>
+              </View>
+
+              {content.education.length > 0 ? (
+                <View style={{ marginTop: 32 }}>
+                  <Text style={sashaStyles.sidebarSectionTitle}>Education</Text>
+                  {content.education.map((entry) => (
+                    <View key={entry.id} style={{ marginBottom: 14 }}>
+                      {entry.degree ? (
+                        <Text style={sashaStyles.sidebarListItem}>{entry.degree}</Text>
+                      ) : null}
+                      <Text style={sashaStyles.sidebarListItem}>{entry.school}</Text>
+                      <Text style={[sashaStyles.sidebarListItem, { opacity: 0.8 }]}>
+                        {formatDateRange(entry.startDate, entry.endDate)}
+                      </Text>
+                    </View>
                   ))}
                 </View>
-              </View>
-            </View>
+              ) : null}
 
-            <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Education</Text>
-              {content.education.map((entry) => (
-                <View key={entry.id} style={turnerStyles.educationItem}>
-                  <Text style={turnerStyles.educationSchool}>{entry.school}</Text>
-                  <Text style={turnerStyles.educationDegree}>{entry.degree}</Text>
-                  <Text style={turnerStyles.educationDates}>
-                    {[entry.startDate, entry.endDate].filter(Boolean).join(' – ')}
-                  </Text>
+              {sidebarSections.map((section) => (
+                <View key={section.id} style={{ marginTop: 28 }}>
+                  <Text style={sashaStyles.sidebarSectionTitle}>{section.title.toUpperCase()}</Text>
+                  <View style={sashaStyles.sidebarList}>
+                    {section.items.map((item) => (
+                      <Text key={item} style={sashaStyles.sidebarListItem}>
+                        {item}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+
+              {sidebarSkills.map((group) => (
+                <View key={group.id} style={{ marginTop: 28 }}>
+                  <Text style={sashaStyles.sidebarSectionTitle}>{group.title.toUpperCase()}</Text>
+                  <View style={sashaStyles.sidebarList}>
+                    {group.skills.map((skill) => (
+                      <Text key={skill} style={sashaStyles.sidebarListItem}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
                 </View>
               ))}
             </View>
 
-            <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Achievements & Awards</Text>
-              <View style={turnerStyles.twoColumn}>
-                <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
-                  {achievementsLeft.map((item, index) => (
-                    <Text key={`achievements-left-${index}`} style={turnerStyles.listItem}>
-                      {item}
-                    </Text>
+            <View style={sashaStyles.main}>
+              {content.objective ? (
+                <View style={sashaStyles.section}>
+                  <Text style={sashaStyles.sectionHeading}>Career Objective</Text>
+                  <Text style={{ fontSize: 12, lineHeight: 1.6, color: '#1e293b' }}>{content.objective}</Text>
+                </View>
+              ) : null}
+
+              {content.workExperiences.length > 0 ? (
+                <View style={sashaStyles.section}>
+                  <Text style={sashaStyles.sectionHeading}>Work Experience</Text>
+                  {content.workExperiences.map((experience) => (
+                    <View key={experience.id} style={sashaStyles.experience}>
+                      <View style={sashaStyles.experienceHeader}>
+                        <View>
+                          <Text style={sashaStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={sashaStyles.experienceCompany}>{experience.company}</Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={sashaStyles.experienceDates}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {experience.location ? (
+                        <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{experience.location}</Text>
+                      ) : null}
+                      {experience.bullets.length > 0 ? (
+                        <View style={sashaStyles.bulletList}>
+                          {experience.bullets.map((bullet, index) => (
+                            <Text key={`${experience.id}-bullet-${index}`} style={sashaStyles.bulletText}>
+                              • {bullet}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
                   ))}
                 </View>
-                <View style={turnerStyles.column}>
-                  {achievementsRight.map((item, index) => (
-                    <Text key={`achievements-right-${index}`} style={turnerStyles.listItem}>
-                      {item}
-                    </Text>
-                  ))}
+              ) : null}
+
+              {mainSkills.length > 0 ? (
+                <View style={sashaStyles.section}>
+                  <Text style={sashaStyles.sectionHeading}>Skills</Text>
+                  <View style={sashaStyles.skillChipRow}>
+                    {mainSkills.flatMap((group) => group.skills).map((skill) => (
+                      <Text key={skill} style={sashaStyles.skillChip}>
+                        {skill.toUpperCase()}
+                      </Text>
+                    ))}
+                  </View>
                 </View>
-              </View>
+              ) : null}
             </View>
-
-            {volunteerExperiences.length > 0 ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Volunteer Experience</Text>
-                {volunteerExperiences.map((experience) => renderExperience(experience))}
-              </View>
-            ) : null}
-
-            <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Interests & Hobbies</Text>
-              <View style={turnerStyles.chipRow}>
-                {interests.map((interest, index) => (
-                  <Text key={`interest-${index}`} style={turnerStyles.chip}>
-                    {interest}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          </View>
-        </View>
-      </Page>
-
-      <Page
-        size="A4"
-        style={{
-          ...baseStyles.page,
-          fontFamily: getFontFamily(content),
-          padding: 0,
-          backgroundColor: '#e2e8f0',
-        }}
-      >
-        <View style={turnerStyles.background}>
-          <View style={turnerStyles.sheet}>
-            <View style={turnerStyles.header}>
-              <Text style={turnerStyles.name}>{content.profile.fullName}</Text>
-              <Text style={turnerStyles.pageFooter}>Page 2 of 2</Text>
-            </View>
-
-            <View style={turnerStyles.divider} />
-
-            {content.summary ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Professional Summary</Text>
-                <Text style={turnerStyles.paragraph}>{content.summary}</Text>
-              </View>
-            ) : null}
-
-            {content.objective ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Career Objective</Text>
-                <Text style={turnerStyles.paragraph}>{content.objective}</Text>
-              </View>
-            ) : null}
-
-            {professionalExperiences.length > 0 ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Professional Experience</Text>
-                {professionalExperiences.map((experience) => renderExperience(experience))}
-              </View>
-            ) : null}
-
-            {languageGroup ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>{languageGroup.title}</Text>
-                {languageGroup.skills.map((skill, index) => (
-                  <Text key={`language-${index}`} style={turnerStyles.simpleList}>
-                    {skill}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-
-            {certificationGroup ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>{certificationGroup.title}</Text>
-                {certificationGroup.skills.map((skill, index) => (
-                  <Text key={`certification-${index}`} style={turnerStyles.simpleList}>
-                    {skill}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-
-            {content.certifications.length > 0 ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Credentials</Text>
-                {content.certifications.map((certificate) => (
-                  <Text key={certificate.id} style={turnerStyles.simpleList}>
-                    {certificate.name}
-                    {certificate.date ? ` — ${certificate.date}` : ''}
-                    {certificate.organization ? ` · ${certificate.organization}` : ''}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-
-            {references.length > 0 ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>References</Text>
-                {references.map((reference, index) => (
-                  <Text key={`reference-${index}`} style={turnerStyles.simpleList}>
-                    {reference}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
           </View>
         </View>
       </Page>
@@ -1615,87 +1526,284 @@ function turnerPdf(content: ResumeDraftContent) {
   );
 }
 
-function catherinePdf(content: ResumeDraftContent) {
+
+
+function samanthaPdf(content: ResumeDraftContent) {
+  const skills = content.skillGroups.flatMap((group) => group.skills);
+  const certificates = content.certifications;
+  const listSections = content.listSections.filter((section) => section.placement !== 'sidebar');
+
   return (
     <Document>
       <Page
         size="A4"
         style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
       >
-        <View style={{ flexDirection: 'row', height: '100%' }}>
-          <View style={{ width: '35%', backgroundColor: '#1f2937', color: '#f8fafc', padding: 32 }}>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>{content.profile.fullName}</Text>
-            <Text style={{ fontSize: 11, color: '#e5e7eb', marginTop: 6 }}>{content.profile.role}</Text>
-            <View style={{ fontSize: 10, marginTop: 14 }}>
-              {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.website, content.profile.contact.linkedin]
-                .filter(Boolean)
-                .map((value) => (
-                  <Text key={value}>{value}</Text>
-                ))}
+        <View style={samanthaStyles.background}>
+          <View style={samanthaStyles.container}>
+            <View style={samanthaStyles.header}>
+              <View style={samanthaStyles.headerRow}>
+                <View>
+                  <Text style={samanthaStyles.headerName}>{content.profile.fullName}</Text>
+                  {content.profile.role ? (
+                    <Text style={samanthaStyles.headerRole}>{content.profile.role}</Text>
+                  ) : null}
+                </View>
+                <View style={samanthaStyles.headerContact}>
+                  {[content.profile.contact.phone, content.profile.contact.email, content.profile.contact.location, content.profile.contact.linkedin]
+                    .filter(Boolean)
+                    .map((value) => (
+                      <Text key={value}>{value}</Text>
+                    ))}
+                </View>
+              </View>
+              {content.summary ? <Text style={samanthaStyles.summary}>{content.summary}</Text> : null}
             </View>
-            {content.skillGroups
-              .filter((group) => group.placement === 'sidebar')
-              .map((group) => (
-                <View key={group.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{group.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(group.skills)}</View>
-                </View>
-              ))}
-            {content.listSections
-              .filter((section) => section.placement === 'sidebar')
-              .map((section) => (
-                <View key={section.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{section.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(section.items)}</View>
-                </View>
-              ))}
-          </View>
 
-          <View style={{ flex: 1, padding: 36 }}>
-            {content.summary && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Profile</Text>
-                <Text>{content.summary}</Text>
-              </View>
-            )}
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Work Experience</Text>
-              {content.workExperiences.map((experience) => renderExperience(experience))}
-            </View>
-            {content.education.length > 0 && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Education</Text>
-                {content.education.map((entry) => renderEducation(entry))}
-              </View>
-            )}
-            {content.skillGroups.some((group) => group.placement !== 'sidebar') && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Skills</Text>
-                {renderList(
-                  content.skillGroups
-                    .filter((group) => group.placement !== 'sidebar')
-                    .flatMap((group) => group.skills)
-                )}
-              </View>
-            )}
-            {content.certifications.length > 0 && (
-              <View>
-                <Text style={baseStyles.sectionHeading}>Certifications</Text>
-                <View style={baseStyles.bulletList}>
-                  {content.certifications.map((certificate) => (
-                    <Text key={certificate.id} style={baseStyles.bulletItem}>
-                      • {certificate.name} {certificate.date ? `(${certificate.date})` : ''}
-                    </Text>
+            <View style={samanthaStyles.body}>
+              {content.workExperiences.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Work History</Text>
+                  {content.workExperiences.map((experience) => (
+                    <View key={experience.id} style={samanthaStyles.experience}>
+                      <View style={samanthaStyles.experienceRow}>
+                        <View>
+                          <Text style={samanthaStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={samanthaStyles.experienceCompany}>{experience.company}</Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={samanthaStyles.experienceDates}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {experience.bullets.length > 0 ? (
+                        <View style={samanthaStyles.bulletList}>
+                          {experience.bullets.map((bullet, index) => (
+                            <Text key={`${experience.id}-bullet-${index}`} style={samanthaStyles.bulletText}>
+                              • {bullet}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
                   ))}
                 </View>
-              </View>
-            )}
+              ) : null}
+
+              {content.education.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Education</Text>
+                  {content.education.map((entry) => (
+                    <View key={entry.id} style={samanthaStyles.educationEntry}>
+                      <Text style={samanthaStyles.educationSchool}>{entry.school}</Text>
+                      {entry.degree ? (
+                        <Text style={samanthaStyles.educationDegree}>{entry.degree}</Text>
+                      ) : null}
+                      <Text style={samanthaStyles.educationDates}>{formatDateRange(entry.startDate, entry.endDate)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {skills.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Skills</Text>
+                  <View style={samanthaStyles.skillRow}>
+                    {skills.map((skill) => (
+                      <Text key={skill} style={samanthaStyles.skillChip}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {certificates.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Certificates</Text>
+                  {certificates.map((certificate) => (
+                    <View key={certificate.id} style={samanthaStyles.certificateRow}>
+                      <Text style={samanthaStyles.certificateName}>{certificate.name}</Text>
+                      {certificate.date ? (
+                        <Text style={samanthaStyles.certificateDate}>{certificate.date}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {listSections.map((section) => (
+                <View key={section.id} style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>{section.title}</Text>
+                  <View style={samanthaStyles.list}>
+                    {section.items.map((item) => (
+                      <Text key={item} style={samanthaStyles.bulletText}>
+                        • {item}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         </View>
       </Page>
     </Document>
   );
 }
+
+
+
+function catherinePdf(content: ResumeDraftContent) {
+  const sidebarGroups = content.skillGroups.filter((group) => group.placement === 'sidebar');
+  const mainSkills = content.skillGroups.filter((group) => group.placement !== 'sidebar');
+  const sidebarSections = content.listSections.filter((section) => section.placement === 'sidebar');
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
+      >
+        <View style={catherineStyles.background}>
+          <View style={catherineStyles.container}>
+            <View style={catherineStyles.sidebar}>
+              <Text style={catherineStyles.sidebarName}>{content.profile.fullName}</Text>
+              {content.profile.role ? (
+                <Text style={catherineStyles.sidebarRole}>{content.profile.role}</Text>
+              ) : null}
+              <View style={catherineStyles.sidebarContact}>
+                {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.website, content.profile.contact.linkedin]
+                  .filter(Boolean)
+                  .map((value) => (
+                    <Text key={value} style={catherineStyles.sidebarListItem}>
+                      {value}
+                    </Text>
+                  ))}
+              </View>
+
+              {sidebarGroups.map((group) => (
+                <View key={group.id}>
+                  <Text style={catherineStyles.sidebarHeading}>{group.title}</Text>
+                  <View style={catherineStyles.sidebarList}>
+                    {group.skills.map((skill) => (
+                      <Text key={skill} style={catherineStyles.sidebarListItem}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+
+              {sidebarSections.map((section) => (
+                <View key={section.id}>
+                  <Text style={catherineStyles.sidebarHeading}>{section.title}</Text>
+                  <View style={catherineStyles.sidebarList}>
+                    {section.items.map((item) => (
+                      <Text key={item} style={catherineStyles.sidebarListItem}>
+                        {item}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={catherineStyles.main}>
+              {content.summary ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Profile</Text>
+                  <Text style={catherineStyles.paragraph}>{content.summary}</Text>
+                </View>
+              ) : null}
+
+              {content.workExperiences.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Work Experience</Text>
+                  {content.workExperiences.map((experience) => (
+                    <View key={experience.id} style={catherineStyles.experience}>
+                      <View style={catherineStyles.experienceHeader}>
+                        <View>
+                          <Text style={catherineStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={catherineStyles.experienceCompany}>{experience.company}</Text>
+                          ) : null}
+                          {experience.location ? (
+                            <Text style={catherineStyles.experienceLocation}>{experience.location}</Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={catherineStyles.experienceDates}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {experience.bullets.length > 0 ? (
+                        <View style={catherineStyles.bulletList}>
+                          {experience.bullets.map((bullet, index) => (
+                            <Text key={`${experience.id}-bullet-${index}`} style={catherineStyles.bulletText}>
+                              • {bullet}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {content.education.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Education</Text>
+                  {content.education.map((entry) => (
+                    <View key={entry.id} style={catherineStyles.educationEntry}>
+                      {entry.degree ? (
+                        <Text style={catherineStyles.educationDegree}>{entry.degree}</Text>
+                      ) : null}
+                      <Text style={catherineStyles.educationSchool}>{entry.school}</Text>
+                      <Text style={catherineStyles.educationDates}>{formatDateRange(entry.startDate, entry.endDate)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {mainSkills.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Skills</Text>
+                  <View style={catherineStyles.skillChipRow}>
+                    {mainSkills.flatMap((group) => group.skills).map((skill) => (
+                      <Text key={skill} style={catherineStyles.skillChip}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {content.certifications.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Certifications</Text>
+                  {content.certifications.map((certification) => (
+                    <View key={certification.id} style={catherineStyles.certificateRow}>
+                      <Text style={catherineStyles.certificateName}>{certification.name}</Text>
+                      {certification.date ? (
+                        <Text style={catherineStyles.certificateDate}>{certification.date}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
 
 const pdfRenderers: Record<string, (content: ResumeDraftContent) => JSX.Element> = {
   'aria-stark': ariaPdf,
