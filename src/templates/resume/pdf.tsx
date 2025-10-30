@@ -1,5 +1,10 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { ResumeDraftContent } from '@/types/resume';
+import {
+  firstEducation,
+  formatDateRange,
+  groupExperiencesByCategory,
+} from '@/templates/resume/components/shared';
 
 // Google-hosted font files were previously registered here, but external downloads
 // can fail in restricted or offline environments. Using the built-in Helvetica font
@@ -29,6 +34,127 @@ const baseStyles = StyleSheet.create({
   },
   bulletItem: {
     marginBottom: 2,
+  },
+});
+
+const ariaStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    padding: 24,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 48,
+  },
+  header: {
+    marginBottom: 28,
+  },
+  name: {
+    fontSize: 32,
+    fontWeight: 800,
+    letterSpacing: 1.6,
+  },
+  role: {
+    fontSize: 20,
+    fontWeight: 600,
+    color: '#475569',
+    marginTop: 6,
+  },
+  summary: {
+    marginTop: 14,
+    color: '#1f2937',
+    fontSize: 12,
+    lineHeight: 1.6,
+  },
+  contact: {
+    marginTop: 14,
+    fontSize: 10.5,
+    color: '#0f172a',
+    fontWeight: 600,
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#0f172a',
+    marginBottom: 12,
+  },
+  experienceBlock: {
+    marginBottom: 18,
+  },
+  experienceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  experienceTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#475569',
+  },
+  experienceDates: {
+    fontSize: 10.5,
+    fontWeight: 600,
+    color: '#94a3b8',
+  },
+  bulletList: {
+    marginTop: 12,
+    marginLeft: 16,
+  },
+  bulletItem: {
+    fontSize: 11,
+    color: '#1e293b',
+    lineHeight: 1.5,
+    marginBottom: 6,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  chip: {
+    fontSize: 11,
+    fontWeight: 600,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 9999,
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 4,
+    marginBottom: 8,
+  },
+  educationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  educationSchool: {
+    fontSize: 16,
+    fontWeight: 700,
+  },
+  educationDegree: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+    marginTop: 2,
+  },
+  educationDates: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: 600,
   },
 });
 
@@ -457,38 +583,102 @@ const turnerStyles = StyleSheet.create({
 });
 
 function ariaPdf(content: ResumeDraftContent) {
+  const grouped = groupExperiencesByCategory(content.workExperiences);
+  const primarySkills =
+    content.skillGroups.find((group) => group.placement !== 'sidebar')?.skills ??
+    content.skillGroups[0]?.skills ??
+    [];
+  const education = firstEducation(content.education);
+  const contactValues = [
+    content.profile.contact.email,
+    content.profile.contact.phone,
+    content.profile.contact.location,
+    content.profile.contact.website,
+  ].filter(Boolean);
+
   return (
     <Document>
-      <Page size="A4" style={{ ...baseStyles.page, fontFamily: getFontFamily(content) }}>
-        <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 22, letterSpacing: 2, fontWeight: 700 }}>{content.profile.fullName.toUpperCase()}</Text>
-          <Text style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginTop: 4 }}>{content.profile.role}</Text>
-          {content.summary ? <Text style={{ marginTop: 10 }}>{content.summary}</Text> : null}
-          <Text style={{ marginTop: 8, fontSize: 10, color: '#64748b' }}>
-            {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.website]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
-        </View>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, backgroundColor: '#f1f5f9', fontFamily: getFontFamily(content) }}
+      >
+        <View style={ariaStyles.background}>
+          <View style={ariaStyles.card}>
+            <View style={ariaStyles.header}>
+              <Text style={ariaStyles.name}>{content.profile.fullName.toUpperCase()}</Text>
+              {content.profile.role ? <Text style={ariaStyles.role}>{content.profile.role}</Text> : null}
+              {content.summary ? <Text style={ariaStyles.summary}>{content.summary}</Text> : null}
+              {contactValues.length > 0 ? (
+                <Text style={ariaStyles.contact}>{contactValues.join('  •  ')}</Text>
+              ) : null}
+            </View>
 
-        <View style={{ marginBottom: 16 }}>
-          <Text style={baseStyles.sectionHeading}>Work Experience</Text>
-          {content.workExperiences.map((experience) => renderExperience(experience))}
-        </View>
+            {Object.entries(grouped).map(([category, experiences]) => (
+              <View key={category} style={ariaStyles.section}>
+                <Text style={ariaStyles.sectionTitle}>{category.toUpperCase()}</Text>
+                {experiences.map((experience) => (
+                  <View key={experience.id} style={ariaStyles.experienceBlock}>
+                    <View style={ariaStyles.experienceHeader}>
+                      <View>
+                        <Text style={ariaStyles.experienceTitle}>{experience.title}</Text>
+                        {experience.company ? (
+                          <Text style={ariaStyles.experienceCompany}>{experience.company}</Text>
+                        ) : null}
+                      </View>
+                      {formatDateRange(experience.startDate, experience.endDate) ? (
+                        <Text style={ariaStyles.experienceDates}>
+                          {formatDateRange(experience.startDate, experience.endDate)}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {experience.location ? (
+                      <Text style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>{experience.location}</Text>
+                    ) : null}
+                    {experience.bullets.length > 0 ? (
+                      <View style={ariaStyles.bulletList}>
+                        {experience.bullets.map((bullet, index) => (
+                          <Text key={`${experience.id}-bullet-${index}`} style={ariaStyles.bulletItem}>
+                            • {bullet}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ))}
 
-        {content.skillGroups.length > 0 && (
-          <View style={{ marginBottom: 16 }}>
-            <Text style={baseStyles.sectionHeading}>Core Skills</Text>
-            {renderList(content.skillGroups[0].skills)}
+            {primarySkills.length > 0 ? (
+              <View style={ariaStyles.section}>
+                <Text style={ariaStyles.sectionTitle}>Core Skills</Text>
+                <View style={ariaStyles.chipRow}>
+                  {primarySkills.map((skill) => (
+                    <Text key={skill} style={ariaStyles.chip}>
+                      {skill}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {education ? (
+              <View style={ariaStyles.section}>
+                <Text style={ariaStyles.sectionTitle}>Education</Text>
+                <View style={ariaStyles.educationRow}>
+                  <View>
+                    <Text style={ariaStyles.educationSchool}>{education.school}</Text>
+                    {education.degree ? <Text style={ariaStyles.educationDegree}>{education.degree}</Text> : null}
+                  </View>
+                  {formatDateRange(education.startDate, education.endDate) ? (
+                    <Text style={ariaStyles.educationDates}>
+                      {formatDateRange(education.startDate, education.endDate)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
           </View>
-        )}
-
-        {content.education.length > 0 && (
-          <View>
-            <Text style={baseStyles.sectionHeading}>Education</Text>
-            {content.education.map((entry) => renderEducation(entry))}
-          </View>
-        )}
+        </View>
       </Page>
     </Document>
   );
