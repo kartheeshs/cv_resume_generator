@@ -1,5 +1,300 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 import { ResumeDraftContent } from '@/types/resume';
+
+const isServer = typeof window === 'undefined';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeFs: typeof import('fs') | null = isServer ? require('fs') : null;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodePath: typeof import('path') | null = isServer ? require('path') : null;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeOs: typeof import('os') | null = isServer ? require('os') : null;
+
+const DEFAULT_FONT_FAMILY = 'Helvetica';
+const JAPANESE_FONT_FAMILY = 'NotoSansJP';
+
+let fontsRegistered = false;
+let japaneseFontAvailable = false;
+
+type FontCandidate = {
+  path: string;
+  fontIndex?: number;
+  postscriptName?: string;
+};
+
+const PATH_LIST_SEPARATOR = process.platform === 'win32' ? ';' : ':';
+
+const japaneseCharacterPattern = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff01-\uff60\uff66-\uff9f\uffe0-\uffe6]/;
+
+function pathListSeparator() {
+  return PATH_LIST_SEPARATOR;
+}
+
+function normalizeCandidatePath(candidate: string): FontCandidate {
+  if (!nodePath) {
+    return { path: candidate };
+  }
+
+  const [rawPath, rawIndex] = candidate.split('::');
+
+  const hasHomePrefix = rawPath.startsWith('~');
+  const resolvedPath = hasHomePrefix && nodeOs
+    ? nodePath.join(nodeOs.homedir(), rawPath.slice(1))
+    : rawPath;
+
+  if (rawIndex === undefined || rawIndex.length === 0) {
+    return { path: resolvedPath };
+  }
+
+  const numericIndex = Number(rawIndex);
+
+  if (Number.isFinite(numericIndex)) {
+    return { path: resolvedPath, fontIndex: numericIndex };
+  }
+
+  return { path: resolvedPath, postscriptName: rawIndex };
+}
+
+function findExistingFont(candidates: string[]): FontCandidate | null {
+  if (!nodeFs) {
+    return null;
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const normalized = normalizeCandidatePath(candidate);
+    try {
+      if (nodeFs.existsSync(normalized.path)) {
+        return normalized;
+      }
+    } catch (error) {
+      // Ignore inaccessible candidates and continue searching.
+    }
+  }
+
+  return null;
+}
+
+function ensurePdfFontsRegistered() {
+  if (fontsRegistered) {
+    return;
+  }
+
+  fontsRegistered = true;
+
+  if (!nodePath) {
+    return;
+  }
+
+  const projectRoot = process.cwd();
+
+  const regularCandidates: string[] = [];
+  const mediumCandidates: string[] = [];
+  const boldCandidates: string[] = [];
+
+  const pushCandidates = (target: string[], values: (string | undefined | null)[]) => {
+    for (const value of values) {
+      if (value) {
+        target.push(value);
+      }
+    }
+  };
+
+  pushCandidates(regularCandidates, [
+    process.env.PDF_JP_FONT_REGULAR,
+    process.env.NOTO_SANS_JP_REGULAR_PATH,
+  ]);
+  pushCandidates(mediumCandidates, [
+    process.env.PDF_JP_FONT_MEDIUM,
+    process.env.NOTO_SANS_JP_MEDIUM_PATH,
+  ]);
+  pushCandidates(boldCandidates, [
+    process.env.PDF_JP_FONT_BOLD,
+    process.env.NOTO_SANS_JP_BOLD_PATH,
+  ]);
+
+  const projectFontCandidates = [
+    nodePath.join(projectRoot, 'fonts'),
+    nodePath.join(projectRoot, 'public', 'fonts'),
+    nodePath.join(projectRoot, 'public', 'fonts', 'noto-sans-jp'),
+    nodePath.join(projectRoot, 'src', 'templates', 'resume', 'fonts'),
+  ];
+
+  const configuredDirectories = process.env.PDF_JP_FONT_DIR
+    ? process.env.PDF_JP_FONT_DIR.split(pathListSeparator())
+    : [];
+
+  for (const directory of configuredDirectories) {
+    const trimmed = directory.trim();
+    if (trimmed) {
+      projectFontCandidates.push(trimmed);
+    }
+  }
+
+  for (const base of projectFontCandidates) {
+    pushCandidates(regularCandidates, [
+      nodePath.join(base, 'NotoSansJP-Regular.otf'),
+      nodePath.join(base, 'NotoSansJP-Regular.ttf'),
+      nodePath.join(base, 'NotoSansCJKjp-Regular.otf'),
+      nodePath.join(base, 'NotoSansCJK-Regular.otf'),
+    ]);
+    pushCandidates(mediumCandidates, [
+      nodePath.join(base, 'NotoSansJP-Medium.otf'),
+      nodePath.join(base, 'NotoSansJP-Medium.ttf'),
+      nodePath.join(base, 'NotoSansJP-Regular.otf'),
+    ]);
+    pushCandidates(boldCandidates, [
+      nodePath.join(base, 'NotoSansJP-Bold.otf'),
+      nodePath.join(base, 'NotoSansJP-Bold.ttf'),
+      nodePath.join(base, 'NotoSansCJKjp-Bold.otf'),
+      nodePath.join(base, 'NotoSansCJK-Bold.otf'),
+      nodePath.join(base, 'NotoSansJP-Medium.otf'),
+      nodePath.join(base, 'NotoSansJP-Regular.otf'),
+    ]);
+  }
+
+  pushCandidates(regularCandidates, [
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc::0',
+    '/usr/share/fonts/truetype/noto/NotoSansCJKjp-Regular.otf',
+    '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.otf',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W3.ttc::0',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W4.ttc::0',
+    '/Library/Fonts/NotoSansCJKjp-Regular.otf',
+    'C:\\Windows\\Fonts\\YuGothR.ttc::0',
+    'C:\\Windows\\Fonts\\meiryo.ttc::0',
+    'C:\\Windows\\Fonts\\msgothic.ttc::0',
+  ]);
+
+  pushCandidates(mediumCandidates, [
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Medium.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc::1',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W6.ttc::0',
+    '/Library/Fonts/NotoSansCJKjp-Medium.otf',
+    'C:\\Windows\\Fonts\\YuGothM.ttc::0',
+  ]);
+
+  pushCandidates(boldCandidates, [
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Bold.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc::0',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W8.ttc::0',
+    '/Library/Fonts/NotoSansCJKjp-Bold.otf',
+    'C:\\Windows\\Fonts\\YuGothB.ttc::0',
+    'C:\\Windows\\Fonts\\meiryob.ttc::0',
+  ]);
+
+  const regular = findExistingFont(regularCandidates);
+  const medium = findExistingFont(mediumCandidates);
+  const bold = findExistingFont(boldCandidates);
+
+  const fontEntries: Array<{ src: string; fontWeight: number; fontIndex?: number; postscriptName?: string }> = [];
+
+  if (regular) {
+    fontEntries.push({
+      src: regular.path,
+      fontWeight: 400,
+      fontIndex: regular.fontIndex,
+      postscriptName: regular.postscriptName,
+    });
+  }
+
+  if (medium) {
+    fontEntries.push({
+      src: medium.path,
+      fontWeight: 600,
+      fontIndex: medium.fontIndex,
+      postscriptName: medium.postscriptName,
+    });
+  } else if (regular) {
+    fontEntries.push({
+      src: regular.path,
+      fontWeight: 600,
+      fontIndex: regular.fontIndex,
+      postscriptName: regular.postscriptName,
+    });
+  }
+
+  if (bold) {
+    fontEntries.push({
+      src: bold.path,
+      fontWeight: 700,
+      fontIndex: bold.fontIndex,
+      postscriptName: bold.postscriptName,
+    });
+  } else if (medium) {
+    fontEntries.push({
+      src: medium.path,
+      fontWeight: 700,
+      fontIndex: medium.fontIndex,
+      postscriptName: medium.postscriptName,
+    });
+  } else if (regular) {
+    fontEntries.push({
+      src: regular.path,
+      fontWeight: 700,
+      fontIndex: regular.fontIndex,
+      postscriptName: regular.postscriptName,
+    });
+  }
+
+  if (fontEntries.length === 0) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[pdf] No Japanese font files found. Falling back to Helvetica for PDF rendering.');
+    }
+    return;
+  }
+
+  try {
+    Font.register({
+      family: JAPANESE_FONT_FAMILY,
+      fonts: fontEntries.map((entry) => ({
+        src: entry.src,
+        fontWeight: entry.fontWeight,
+        fontStyle: 'normal',
+        ...(entry.fontIndex !== undefined ? { fontIndex: entry.fontIndex } : {}),
+        ...(entry.postscriptName ? { postscriptName: entry.postscriptName } : {}),
+      })) as any,
+    });
+    japaneseFontAvailable = true;
+  } catch (error) {
+    console.warn('[pdf] Failed to register Japanese font family:', error);
+  }
+}
+
+function contentContainsJapanese(content: ResumeDraftContent): boolean {
+  const stack: unknown[] = [content];
+
+  while (stack.length > 0) {
+    const value = stack.pop();
+
+    if (typeof value === 'string') {
+      if (japaneseCharacterPattern.test(value)) {
+        return true;
+      }
+    } else if (Array.isArray(value)) {
+      stack.push(...value);
+    } else if (value && typeof value === 'object') {
+      stack.push(...Object.values(value as Record<string, unknown>));
+    }
+  }
+
+  return false;
+}
+
+function getFontFamily(content: ResumeDraftContent, options?: { preferJapanese?: boolean }) {
+  ensurePdfFontsRegistered();
+
+  if (
+    japaneseFontAvailable &&
+    (options?.preferJapanese || content.language?.toLowerCase().startsWith('ja') || contentContainsJapanese(content))
+  ) {
+    return JAPANESE_FONT_FAMILY;
+  }
+
+  return DEFAULT_FONT_FAMILY;
+}
 import {
   firstEducation,
   formatDateRange,
@@ -157,10 +452,6 @@ const ariaStyles = StyleSheet.create({
     fontWeight: 600,
   },
 });
-
-function getFontFamily(_content: ResumeDraftContent) {
-  return 'Helvetica';
-}
 
 function renderExperience(experience: ResumeDraftContent['workExperiences'][number]) {
   return (
@@ -865,7 +1156,7 @@ function japanesePdf(content: ResumeDraftContent) {
         style={{
           ...baseStyles.page,
           backgroundColor: '#fff',
-          fontFamily: getFontFamily(content),
+          fontFamily: getFontFamily(content, { preferJapanese: true }),
         }}
       >
         <View style={japaneseStyles.container}>
