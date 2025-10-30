@@ -334,7 +334,6 @@ const baseStyles = StyleSheet.create({
     marginTop: 4,
     display: 'flex',
     flexDirection: 'column',
-    gap: 2,
   },
   bulletItem: {
     marginBottom: 2,
@@ -507,11 +506,11 @@ const sashaStyles = StyleSheet.create({
   sidebarList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
   },
   sidebarListItem: {
     fontSize: 11,
     letterSpacing: 0.6,
+    marginBottom: 6,
   },
   sidebarContact: {
     marginTop: 20,
@@ -545,7 +544,6 @@ const sashaStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    gap: 12,
   },
   experienceTitle: {
     fontSize: 15,
@@ -561,18 +559,19 @@ const sashaStyles = StyleSheet.create({
     fontSize: 11,
     color: '#475569',
     fontWeight: 600,
+    marginTop: 6,
   },
   bulletList: {
     marginTop: 10,
     marginLeft: 14,
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
   },
   bulletText: {
     fontSize: 11,
     lineHeight: 1.6,
     color: '#1e293b',
+    marginBottom: 6,
   },
   skillChipRow: {
     flexDirection: 'row',
@@ -616,9 +615,8 @@ const samanthaStyles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexWrap: 'wrap',
-    gap: 16,
   },
   headerName: {
     fontSize: 30,
@@ -662,7 +660,6 @@ const samanthaStyles = StyleSheet.create({
     justifyContent: 'space-between',
     flexWrap: 'wrap',
     alignItems: 'baseline',
-    gap: 12,
   },
   experienceTitle: {
     fontSize: 16,
@@ -678,18 +675,19 @@ const samanthaStyles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     fontWeight: 600,
+    marginTop: 6,
   },
   bulletList: {
     marginTop: 10,
     marginLeft: 16,
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
   },
   bulletText: {
     fontSize: 11,
     color: '#475569',
     lineHeight: 1.6,
+    marginBottom: 6,
   },
   educationEntry: {
     marginBottom: 18,
@@ -713,7 +711,6 @@ const samanthaStyles = StyleSheet.create({
   skillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
   },
   skillChip: {
     paddingVertical: 8,
@@ -723,27 +720,29 @@ const samanthaStyles = StyleSheet.create({
     color: '#0f172a',
     fontSize: 12,
     fontWeight: 600,
+    marginRight: 12,
+    marginBottom: 12,
   },
   certificateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 12,
   },
   certificateName: {
     fontSize: 12,
     fontWeight: 600,
     color: '#0f172a',
+    marginBottom: 6,
   },
   certificateDate: {
     fontSize: 11,
     color: '#64748b',
+    marginTop: 6,
   },
   list: {
     marginLeft: 16,
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
   },
 });
 
@@ -793,11 +792,11 @@ const catherineStyles = StyleSheet.create({
     marginTop: 10,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
   },
   sidebarListItem: {
     fontSize: 11,
     lineHeight: 1.5,
+    marginBottom: 8,
   },
   main: {
     flex: 1,
@@ -829,7 +828,6 @@ const catherineStyles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'baseline',
     flexWrap: 'wrap',
-    gap: 16,
   },
   experienceTitle: {
     fontSize: 16,
@@ -850,18 +848,19 @@ const catherineStyles = StyleSheet.create({
     fontSize: 11,
     color: '#6b7280',
     fontWeight: 600,
+    marginTop: 6,
   },
   bulletList: {
     marginTop: 12,
     marginLeft: 18,
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
   },
   bulletText: {
     fontSize: 11,
     color: '#4b5563',
     lineHeight: 1.7,
+    marginBottom: 6,
   },
   educationEntry: {
     marginBottom: 18,
@@ -885,7 +884,6 @@ const catherineStyles = StyleSheet.create({
   skillChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
   },
   skillChip: {
     paddingVertical: 8,
@@ -895,21 +893,24 @@ const catherineStyles = StyleSheet.create({
     color: '#1d4ed8',
     fontSize: 12,
     fontWeight: 600,
+    marginRight: 12,
+    marginBottom: 12,
   },
   certificateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
     flexWrap: 'wrap',
   },
   certificateName: {
     fontSize: 12,
     fontWeight: 600,
     color: '#1f2937',
+    marginBottom: 6,
   },
   certificateDate: {
     fontSize: 11,
     color: '#6b7280',
+    marginTop: 6,
   },
 });
 
