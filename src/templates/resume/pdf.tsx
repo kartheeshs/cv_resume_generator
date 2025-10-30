@@ -304,6 +304,20 @@ function getFontFamily(content: ResumeDraftContent, options?: FontPreference) {
 
   return DEFAULT_FONT_FAMILY;
 }
+
+function getFontConfig(content: ResumeDraftContent, options?: FontPreference) {
+  const family = getFontFamily(content, options);
+  const usesStandardPdfFont = family === DEFAULT_FONT_FAMILY || family === 'Times-Roman';
+
+  return {
+    family,
+    weights: {
+      regular: 400,
+      medium: usesStandardPdfFont ? 700 : 600,
+      bold: 700,
+    },
+  } as const;
+}
 import {
   firstEducation,
   formatDateRange,
@@ -1284,6 +1298,8 @@ const turnerStyles = StyleSheet.create({
 });
 
 function ariaPdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
   const grouped = groupExperiencesByCategory(content.workExperiences);
   const primarySkills =
     content.skillGroups.find((group) => group.placement !== 'sidebar')?.skills ??
@@ -1301,16 +1317,20 @@ function ariaPdf(content: ResumeDraftContent) {
     <Document>
       <Page
         size="A4"
-        style={{ ...baseStyles.page, padding: 0, backgroundColor: '#f1f5f9', fontFamily: getFontFamily(content) }}
+        style={{ ...baseStyles.page, padding: 0, backgroundColor: '#f1f5f9', fontFamily: font.family }}
       >
         <View style={ariaStyles.background}>
           <View style={ariaStyles.card}>
             <View style={ariaStyles.header}>
               <Text style={ariaStyles.name}>{content.profile.fullName.toUpperCase()}</Text>
-              {content.profile.role ? <Text style={ariaStyles.role}>{content.profile.role}</Text> : null}
+              {content.profile.role ? (
+                <Text style={[ariaStyles.role, { fontWeight: mediumWeight }]}>{content.profile.role}</Text>
+              ) : null}
               {content.summary ? <Text style={ariaStyles.summary}>{content.summary}</Text> : null}
               {contactValues.length > 0 ? (
-                <Text style={ariaStyles.contact}>{contactValues.join('  •  ')}</Text>
+                <Text style={[ariaStyles.contact, { fontWeight: mediumWeight }]}>
+                  {contactValues.join('  •  ')}
+                </Text>
               ) : null}
             </View>
 
@@ -1319,19 +1339,21 @@ function ariaPdf(content: ResumeDraftContent) {
                 <Text style={ariaStyles.sectionTitle}>{category.toUpperCase()}</Text>
                 {experiences.map((experience) => (
                   <View key={experience.id} style={ariaStyles.experienceBlock}>
-                    <View style={ariaStyles.experienceHeader}>
-                      <View>
-                        <Text style={ariaStyles.experienceTitle}>{experience.title}</Text>
-                        {experience.company ? (
-                          <Text style={ariaStyles.experienceCompany}>{experience.company}</Text>
+                      <View style={ariaStyles.experienceHeader}>
+                        <View>
+                          <Text style={ariaStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={[ariaStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={[ariaStyles.experienceDates, { fontWeight: mediumWeight }]}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
                         ) : null}
                       </View>
-                      {formatDateRange(experience.startDate, experience.endDate) ? (
-                        <Text style={ariaStyles.experienceDates}>
-                          {formatDateRange(experience.startDate, experience.endDate)}
-                        </Text>
-                      ) : null}
-                    </View>
                     {experience.location ? (
                       <Text style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>{experience.location}</Text>
                     ) : null}
@@ -1354,7 +1376,7 @@ function ariaPdf(content: ResumeDraftContent) {
                 <Text style={ariaStyles.sectionTitle}>Core Skills</Text>
                 <View style={ariaStyles.chipRow}>
                   {primarySkills.map((skill) => (
-                    <Text key={skill} style={ariaStyles.chip}>
+                    <Text key={skill} style={[ariaStyles.chip, { fontWeight: mediumWeight }]}>
                       {skill}
                     </Text>
                   ))}
@@ -1368,10 +1390,14 @@ function ariaPdf(content: ResumeDraftContent) {
                 <View style={ariaStyles.educationRow}>
                   <View>
                     <Text style={ariaStyles.educationSchool}>{education.school}</Text>
-                    {education.degree ? <Text style={ariaStyles.educationDegree}>{education.degree}</Text> : null}
+                    {education.degree ? (
+                      <Text style={[ariaStyles.educationDegree, { fontWeight: mediumWeight }]}>
+                        {education.degree}
+                      </Text>
+                    ) : null}
                   </View>
                   {formatDateRange(education.startDate, education.endDate) ? (
-                    <Text style={ariaStyles.educationDates}>
+                    <Text style={[ariaStyles.educationDates, { fontWeight: mediumWeight }]}>
                       {formatDateRange(education.startDate, education.endDate)}
                     </Text>
                   ) : null}
@@ -1387,6 +1413,8 @@ function ariaPdf(content: ResumeDraftContent) {
 
 
 function sashaPdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content, { style: 'serif' });
+  const mediumWeight = font.weights.medium;
   const sidebarSkills = content.skillGroups.filter((group) => group.placement !== 'main');
   const mainSkills = content.skillGroups.filter((group) => group.placement === 'main');
   const sidebarSections = content.listSections.filter((section) => section.placement !== 'main');
@@ -1398,7 +1426,7 @@ function sashaPdf(content: ResumeDraftContent) {
         style={{
           ...baseStyles.page,
           padding: 0,
-          fontFamily: getFontFamily(content, { style: 'serif' }),
+          fontFamily: font.family,
           backgroundColor: '#f1f5f9',
         }}
       >
@@ -1422,7 +1450,7 @@ function sashaPdf(content: ResumeDraftContent) {
 
               {content.education.length > 0 ? (
                 <View style={{ marginTop: 32 }}>
-                  <Text style={sashaStyles.sidebarSectionTitle}>Education</Text>
+                  <Text style={[sashaStyles.sidebarSectionTitle, { fontWeight: mediumWeight }]}>Education</Text>
                   {content.education.map((entry) => (
                     <View key={entry.id} style={{ marginBottom: 14 }}>
                       {entry.degree ? (
@@ -1439,7 +1467,9 @@ function sashaPdf(content: ResumeDraftContent) {
 
               {sidebarSections.map((section) => (
                 <View key={section.id} style={{ marginTop: 28 }}>
-                  <Text style={sashaStyles.sidebarSectionTitle}>{section.title.toUpperCase()}</Text>
+                  <Text style={[sashaStyles.sidebarSectionTitle, { fontWeight: mediumWeight }]}>
+                    {section.title.toUpperCase()}
+                  </Text>
                   <View style={sashaStyles.sidebarList}>
                     {section.items.map((item) => (
                       <Text key={item} style={sashaStyles.sidebarListItem}>
@@ -1452,7 +1482,9 @@ function sashaPdf(content: ResumeDraftContent) {
 
               {sidebarSkills.map((group) => (
                 <View key={group.id} style={{ marginTop: 28 }}>
-                  <Text style={sashaStyles.sidebarSectionTitle}>{group.title.toUpperCase()}</Text>
+                  <Text style={[sashaStyles.sidebarSectionTitle, { fontWeight: mediumWeight }]}>
+                    {group.title.toUpperCase()}
+                  </Text>
                   <View style={sashaStyles.sidebarList}>
                     {group.skills.map((skill) => (
                       <Text key={skill} style={sashaStyles.sidebarListItem}>
@@ -1467,25 +1499,27 @@ function sashaPdf(content: ResumeDraftContent) {
             <View style={sashaStyles.main}>
               {content.objective ? (
                 <View style={sashaStyles.section}>
-                  <Text style={sashaStyles.sectionHeading}>Career Objective</Text>
+                  <Text style={[sashaStyles.sectionHeading, { fontWeight: mediumWeight }]}>Career Objective</Text>
                   <Text style={{ fontSize: 12, lineHeight: 1.6, color: '#1e293b' }}>{content.objective}</Text>
                 </View>
               ) : null}
 
               {content.workExperiences.length > 0 ? (
                 <View style={sashaStyles.section}>
-                  <Text style={sashaStyles.sectionHeading}>Work Experience</Text>
+                  <Text style={[sashaStyles.sectionHeading, { fontWeight: mediumWeight }]}>Work Experience</Text>
                   {content.workExperiences.map((experience) => (
                     <View key={experience.id} style={sashaStyles.experience}>
                       <View style={sashaStyles.experienceHeader}>
                         <View>
                           <Text style={sashaStyles.experienceTitle}>{experience.title}</Text>
                           {experience.company ? (
-                            <Text style={sashaStyles.experienceCompany}>{experience.company}</Text>
+                            <Text style={[sashaStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
                           ) : null}
                         </View>
                         {formatDateRange(experience.startDate, experience.endDate) ? (
-                          <Text style={sashaStyles.experienceDates}>
+                          <Text style={[sashaStyles.experienceDates, { fontWeight: mediumWeight }]}>
                             {formatDateRange(experience.startDate, experience.endDate)}
                           </Text>
                         ) : null}
@@ -1509,10 +1543,10 @@ function sashaPdf(content: ResumeDraftContent) {
 
               {mainSkills.length > 0 ? (
                 <View style={sashaStyles.section}>
-                  <Text style={sashaStyles.sectionHeading}>Skills</Text>
+                  <Text style={[sashaStyles.sectionHeading, { fontWeight: mediumWeight }]}>Skills</Text>
                   <View style={sashaStyles.skillChipRow}>
                     {mainSkills.flatMap((group) => group.skills).map((skill) => (
-                      <Text key={skill} style={sashaStyles.skillChip}>
+                      <Text key={skill} style={[sashaStyles.skillChip, { fontWeight: mediumWeight }]}>
                         {skill.toUpperCase()}
                       </Text>
                     ))}
@@ -1530,6 +1564,8 @@ function sashaPdf(content: ResumeDraftContent) {
 
 
 function samanthaPdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
   const skills = content.skillGroups.flatMap((group) => group.skills);
   const certificates = content.certifications;
   const listSections = content.listSections.filter((section) => section.placement !== 'sidebar');
@@ -1538,7 +1574,7 @@ function samanthaPdf(content: ResumeDraftContent) {
     <Document>
       <Page
         size="A4"
-        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
+        style={{ ...baseStyles.page, padding: 0, fontFamily: font.family }}
       >
         <View style={samanthaStyles.background}>
           <View style={samanthaStyles.container}>
@@ -1571,11 +1607,13 @@ function samanthaPdf(content: ResumeDraftContent) {
                         <View>
                           <Text style={samanthaStyles.experienceTitle}>{experience.title}</Text>
                           {experience.company ? (
-                            <Text style={samanthaStyles.experienceCompany}>{experience.company}</Text>
+                            <Text style={[samanthaStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
                           ) : null}
                         </View>
                         {formatDateRange(experience.startDate, experience.endDate) ? (
-                          <Text style={samanthaStyles.experienceDates}>
+                          <Text style={[samanthaStyles.experienceDates, { fontWeight: mediumWeight }]}>
                             {formatDateRange(experience.startDate, experience.endDate)}
                           </Text>
                         ) : null}
@@ -1601,7 +1639,9 @@ function samanthaPdf(content: ResumeDraftContent) {
                     <View key={entry.id} style={samanthaStyles.educationEntry}>
                       <Text style={samanthaStyles.educationSchool}>{entry.school}</Text>
                       {entry.degree ? (
-                        <Text style={samanthaStyles.educationDegree}>{entry.degree}</Text>
+                        <Text style={[samanthaStyles.educationDegree, { fontWeight: mediumWeight }]}>
+                          {entry.degree}
+                        </Text>
                       ) : null}
                       <Text style={samanthaStyles.educationDates}>{formatDateRange(entry.startDate, entry.endDate)}</Text>
                     </View>
@@ -1614,7 +1654,7 @@ function samanthaPdf(content: ResumeDraftContent) {
                   <Text style={samanthaStyles.sectionHeading}>Skills</Text>
                   <View style={samanthaStyles.skillRow}>
                     {skills.map((skill) => (
-                      <Text key={skill} style={samanthaStyles.skillChip}>
+                      <Text key={skill} style={[samanthaStyles.skillChip, { fontWeight: mediumWeight }]}>
                         {skill}
                       </Text>
                     ))}
@@ -1627,7 +1667,9 @@ function samanthaPdf(content: ResumeDraftContent) {
                   <Text style={samanthaStyles.sectionHeading}>Certificates</Text>
                   {certificates.map((certificate) => (
                     <View key={certificate.id} style={samanthaStyles.certificateRow}>
-                      <Text style={samanthaStyles.certificateName}>{certificate.name}</Text>
+                      <Text style={[samanthaStyles.certificateName, { fontWeight: mediumWeight }]}>
+                        {certificate.name}
+                      </Text>
                       {certificate.date ? (
                         <Text style={samanthaStyles.certificateDate}>{certificate.date}</Text>
                       ) : null}
@@ -1659,6 +1701,8 @@ function samanthaPdf(content: ResumeDraftContent) {
 
 
 function catherinePdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
   const sidebarGroups = content.skillGroups.filter((group) => group.placement === 'sidebar');
   const mainSkills = content.skillGroups.filter((group) => group.placement !== 'sidebar');
   const sidebarSections = content.listSections.filter((section) => section.placement === 'sidebar');
@@ -1667,7 +1711,7 @@ function catherinePdf(content: ResumeDraftContent) {
     <Document>
       <Page
         size="A4"
-        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
+        style={{ ...baseStyles.page, padding: 0, fontFamily: font.family }}
       >
         <View style={catherineStyles.background}>
           <View style={catherineStyles.container}>
@@ -1730,14 +1774,16 @@ function catherinePdf(content: ResumeDraftContent) {
                         <View>
                           <Text style={catherineStyles.experienceTitle}>{experience.title}</Text>
                           {experience.company ? (
-                            <Text style={catherineStyles.experienceCompany}>{experience.company}</Text>
+                            <Text style={[catherineStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
                           ) : null}
                           {experience.location ? (
                             <Text style={catherineStyles.experienceLocation}>{experience.location}</Text>
                           ) : null}
                         </View>
                         {formatDateRange(experience.startDate, experience.endDate) ? (
-                          <Text style={catherineStyles.experienceDates}>
+                          <Text style={[catherineStyles.experienceDates, { fontWeight: mediumWeight }]}>
                             {formatDateRange(experience.startDate, experience.endDate)}
                           </Text>
                         ) : null}
@@ -1764,7 +1810,9 @@ function catherinePdf(content: ResumeDraftContent) {
                       {entry.degree ? (
                         <Text style={catherineStyles.educationDegree}>{entry.degree}</Text>
                       ) : null}
-                      <Text style={catherineStyles.educationSchool}>{entry.school}</Text>
+                      <Text style={[catherineStyles.educationSchool, { fontWeight: mediumWeight }]}>
+                        {entry.school}
+                      </Text>
                       <Text style={catherineStyles.educationDates}>{formatDateRange(entry.startDate, entry.endDate)}</Text>
                     </View>
                   ))}
@@ -1776,7 +1824,7 @@ function catherinePdf(content: ResumeDraftContent) {
                   <Text style={catherineStyles.sectionHeading}>Skills</Text>
                   <View style={catherineStyles.skillChipRow}>
                     {mainSkills.flatMap((group) => group.skills).map((skill) => (
-                      <Text key={skill} style={catherineStyles.skillChip}>
+                      <Text key={skill} style={[catherineStyles.skillChip, { fontWeight: mediumWeight }]}>
                         {skill}
                       </Text>
                     ))}
@@ -1789,7 +1837,9 @@ function catherinePdf(content: ResumeDraftContent) {
                   <Text style={catherineStyles.sectionHeading}>Certifications</Text>
                   {content.certifications.map((certification) => (
                     <View key={certification.id} style={catherineStyles.certificateRow}>
-                      <Text style={catherineStyles.certificateName}>{certification.name}</Text>
+                      <Text style={[catherineStyles.certificateName, { fontWeight: mediumWeight }]}>
+                        {certification.name}
+                      </Text>
                       {certification.date ? (
                         <Text style={catherineStyles.certificateDate}>{certification.date}</Text>
                       ) : null}
