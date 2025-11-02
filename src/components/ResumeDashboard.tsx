@@ -14,7 +14,6 @@ import {
   increment,
   onSnapshot,
   orderBy,
-  limit,
   query,
   serverTimestamp,
   setDoc,
@@ -308,6 +307,38 @@ function formatLanguageLabel(value?: string) {
   return 'English';
 }
 
+function deriveDocumentTitle(
+  content: Pick<ResumeDraftContent, 'documentTitle' | 'profile'>,
+  definition: ResumeTemplateDefinition
+) {
+  const stored = content.documentTitle?.trim();
+  if (stored) {
+    return stored;
+  }
+
+  const fullName = content.profile.fullName?.trim();
+  if (fullName) {
+    const suffix = definition.kind === 'cv' ? 'CV' : 'Resume';
+    return `${fullName} ${suffix}`;
+  }
+
+  const fallback = definition.defaultContent.documentTitle?.trim();
+  if (fallback) {
+    return fallback;
+  }
+
+  const descriptor = definition.kind === 'cv' ? 'CV' : 'Resume';
+  return `${definition.name} ${descriptor}`;
+}
+
+function resolveLanguageValue(value: string | undefined, definition: ResumeTemplateDefinition) {
+  const trimmed = value?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return definition.defaultContent.language ?? 'en';
+}
+
 export function ResumeDashboard() {
   const { user, profile, refreshProfile } = useAuth();
   const { copy } = useLocalization();
@@ -319,13 +350,14 @@ export function ResumeDashboard() {
   const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
   const [form, setForm] = useState<DraftFormState>(() => {
     const definition = getResumeTemplateDefinition(defaultTemplateId);
-    const defaultContent = deepClone(
-      definition?.defaultContent ?? resumeTemplateDefinitions['aria-stark'].defaultContent
-    );
+    const effectiveDefinition = definition ?? resumeTemplateDefinitions['aria-stark'];
+    const defaultContent = deepClone(effectiveDefinition.defaultContent);
     return {
       ...defaultContent,
-      language: defaultContent.language ?? 'en',
-      templateId: definition?.id ?? defaultTemplateId,
+      documentTitle: '',
+      language: resolveLanguageValue(defaultContent.language, effectiveDefinition),
+      templateId: effectiveDefinition.id,
+      id: undefined,
     };
   });
   const [status, setStatusState] = useState<DashboardStatus | null>(null);
@@ -518,11 +550,7 @@ export function ResumeDashboard() {
     }
     setLoadingDrafts(true);
 
-    const draftsQuery = query(
-      collection(db, 'drafts'),
-      where('ownerId', '==', user.uid),
-      orderBy('updatedAt', 'desc')
-    );
+    const draftsQuery = query(collection(db, 'drafts'), where('ownerId', '==', user.uid));
 
     const unsubscribe = onSnapshot(
       draftsQuery,
@@ -554,7 +582,12 @@ export function ResumeDashboard() {
               createdAt: (data.createdAt as Timestamp)?.toDate?.(),
             } satisfies ResumeDraft;
           })
-          .filter(Boolean) as ResumeDraft[];
+          .filter(Boolean)
+          .sort((a, b) => {
+            const first = (a?.updatedAt ?? new Date(0)).getTime();
+            const second = (b?.updatedAt ?? new Date(0)).getTime();
+            return second - first;
+          }) as ResumeDraft[];
 
         setDrafts(parsed);
         setLoadingDrafts(false);
@@ -576,27 +609,29 @@ export function ResumeDashboard() {
       return;
     }
 
-    const downloadsQuery = query(
-      collection(db, 'downloads'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc'),
-      limit(25)
-    );
+    const downloadsQuery = query(collection(db, 'downloads'), where('userId', '==', user.uid));
 
     const unsubscribe = onSnapshot(
       downloadsQuery,
       (snapshot) => {
-        const rows: DownloadLog[] = snapshot.docs.map((document) => {
-          const data = document.data();
-          return {
-            id: document.id,
-            documentTitle: (data.documentTitle as string) ?? 'Untitled resume',
-            templateId: (data.templateId as string) ?? 'unknown-template',
-            language: data.language as string | undefined,
-            plan: data.plan as string | undefined,
-            createdAt: (data.createdAt as Timestamp | undefined)?.toDate?.(),
-          };
-        });
+        const rows: DownloadLog[] = snapshot.docs
+          .map((document) => {
+            const data = document.data();
+            return {
+              id: document.id,
+              documentTitle: (data.documentTitle as string) ?? 'Untitled resume',
+              templateId: (data.templateId as string) ?? 'unknown-template',
+              language: data.language as string | undefined,
+              plan: data.plan as string | undefined,
+              createdAt: (data.createdAt as Timestamp | undefined)?.toDate?.(),
+            };
+          })
+          .sort((a, b) => {
+            const first = (a.createdAt ?? new Date(0)).getTime();
+            const second = (b.createdAt ?? new Date(0)).getTime();
+            return second - first;
+          })
+          .slice(0, 25);
         setDownloads(rows);
         setLoadingDownloads(false);
       },
@@ -613,6 +648,16 @@ export function ResumeDashboard() {
   const selectedTemplateDefinition = useMemo(
     () => getResumeTemplateDefinition(form.templateId) ?? resumeTemplateDefinitions[defaultTemplateId],
     [form.templateId]
+  );
+
+  const resolvedLanguage = useMemo(
+    () => resolveLanguageValue(form.language, selectedTemplateDefinition),
+    [form.language, selectedTemplateDefinition]
+  );
+
+  const computedDocumentTitle = useMemo(
+    () => deriveDocumentTitle(form, selectedTemplateDefinition),
+    [form.documentTitle, form.profile.fullName, selectedTemplateDefinition]
   );
 
   const resumeTemplates = useMemo(
@@ -655,9 +700,6 @@ export function ResumeDashboard() {
 
   const resumeDrafts = drafts.filter((draft) => getResumeTemplateDefinition(draft.templateId)?.kind === 'resume');
   const cvDrafts = drafts.filter((draft) => getResumeTemplateDefinition(draft.templateId)?.kind === 'cv');
-
-  const isCustomLanguage = !LANGUAGE_OPTIONS.some((option) => option.value === form.language);
-  const selectedLanguageValue = isCustomLanguage ? 'custom' : form.language;
 
   const syncSubscription = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -748,7 +790,8 @@ export function ResumeDashboard() {
 
     setForm({
       ...content,
-      language: content.language ?? 'en',
+      documentTitle: '',
+      language: resolveLanguageValue(content.language, definition),
       templateId: definition.id,
       id: undefined,
     });
@@ -769,7 +812,7 @@ export function ResumeDashboard() {
       const data = snapshot.data();
       const templateId = (data.templateId as string) ?? defaultTemplateId;
       const definition = getResumeTemplateDefinition(templateId) ?? resumeTemplateDefinitions[defaultTemplateId];
-      const language = (data.language as string | undefined) ?? definition.defaultContent.language ?? 'en';
+      const language = resolveLanguageValue(data.language as string | undefined, definition);
 
       setForm({
         templateId,
@@ -834,33 +877,17 @@ export function ResumeDashboard() {
     });
   };
 
-  const handleLanguageSelectChange = (value: string) => {
-    setForm((previous) => {
-      const nextLanguage =
-        value === 'custom'
-          ? LANGUAGE_OPTIONS.some((option) => option.value === previous.language) ? '' : previous.language
-          : value;
-      return { ...previous, language: nextLanguage };
-    });
-  };
-
-  const handleCustomLanguageChange = (value: string) => {
-    setForm((previous) => ({ ...previous, language: value }));
-  };
-
   const saveDraft = async (): Promise<string | null> => {
     if (!user) return null;
-    if (!form.documentTitle.trim()) {
-      showStatus(statuses.missingTitle, 'warning');
-      return null;
-    }
 
     try {
+      const documentTitle = computedDocumentTitle;
+      const language = resolvedLanguage;
       const payload = {
         ownerId: user.uid,
         templateId: form.templateId,
-        documentTitle: form.documentTitle,
-        language: form.language || 'en',
+        documentTitle,
+        language,
         profile: form.profile,
         summary: form.summary ?? '',
         objective: form.objective ?? '',
@@ -875,6 +902,7 @@ export function ResumeDashboard() {
 
       if (form.id) {
         await setDoc(doc(db, 'drafts', form.id), payload, { merge: true });
+        setForm((previous) => ({ ...previous, documentTitle, language }));
         showStatus(statuses.draftUpdated, 'success');
         return form.id;
       }
@@ -883,7 +911,7 @@ export function ResumeDashboard() {
         ...payload,
         createdAt: serverTimestamp(),
       });
-      setForm((previous) => ({ ...previous, id: ref.id }));
+      setForm((previous) => ({ ...previous, id: ref.id, documentTitle, language }));
       showStatus(statuses.draftCreated, 'success');
       return ref.id;
     } catch (error) {
@@ -987,7 +1015,12 @@ export function ResumeDashboard() {
     }
 
     try {
-      const { id: _id, templateId: _templateId, ...content } = form;
+      const { id: _id, templateId: _templateId, ...rawContent } = form;
+      const content: ResumeDraftContent = {
+        ...rawContent,
+        documentTitle: computedDocumentTitle,
+        language: resolvedLanguage,
+      };
       const response = await fetch('/api/resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1005,7 +1038,7 @@ export function ResumeDashboard() {
       const url = window.URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${form.documentTitle.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+      anchor.download = `${computedDocumentTitle.replace(/\s+/g, '-').toLowerCase()}.pdf`;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
@@ -1017,8 +1050,8 @@ export function ResumeDashboard() {
             userId: user.uid,
             draftId,
             templateId: form.templateId,
-            documentTitle: form.documentTitle,
-            language: form.language,
+            documentTitle: computedDocumentTitle,
+            language: resolvedLanguage,
             plan: entitlements.plan,
             createdAt: serverTimestamp(),
           });
@@ -1050,6 +1083,8 @@ export function ResumeDashboard() {
 
     setForm({
       ...deepClone(definition.defaultContent),
+      documentTitle: '',
+      language: resolveLanguageValue(definition.defaultContent.language, definition),
       templateId: definition.id,
       id: undefined,
     });
@@ -1461,7 +1496,7 @@ export function ResumeDashboard() {
                   Reviewing the {selectedTemplateDefinition.name} layout with your latest edits.
                 </p>
                 <p style={{ margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.95rem' }}>
-                  Language: {formatLanguageLabel(form.language)}
+                  Language: {formatLanguageLabel(resolvedLanguage)}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -1649,45 +1684,37 @@ export function ResumeDashboard() {
             <section style={{ background: '#fff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.5rem' }}>
               <h2 style={{ marginTop: 0 }}>Resume editor</h2>
               <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
+                <div style={{ display: 'grid', gap: '0.35rem' }}>
                   <span>Document title</span>
-                  <input
-                    type="text"
-                    value={form.documentTitle}
-                    onChange={(event) => setForm((previous) => ({ ...previous, documentTitle: event.target.value }))}
-                    style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', border: '1px solid #cbd5f5' }}
-                    placeholder="e.g. Technical Writer Resume"
-                  />
-                </label>
-
-                <label style={{ display: 'grid', gap: '0.35rem' }}>
-                  <span>Language</span>
-                  <select
-                    value={selectedLanguageValue}
-                    onChange={(event) => handleLanguageSelectChange(event.target.value)}
-                    style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', border: '1px solid #cbd5f5' }}
+                  <div
+                    style={{
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0.65rem',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                      fontWeight: 600,
+                    }}
                   >
-                    {LANGUAGE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                    <option value="custom">Custom</option>
-                  </select>
-                </label>
+                    {computedDocumentTitle}
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                    Updated automatically from your profile name and template.
+                  </span>
+                </div>
 
-                {isCustomLanguage && (
-                  <label style={{ display: 'grid', gap: '0.35rem' }}>
-                    <span>Custom language</span>
-                    <input
-                      type="text"
-                      value={form.language}
-                      onChange={(event) => handleCustomLanguageChange(event.target.value)}
-                      style={{ padding: '0.65rem 0.85rem', borderRadius: '0.65rem', border: '1px solid #cbd5f5' }}
-                      placeholder="e.g. 日本語 or Portuguese"
-                    />
-                  </label>
-                )}
+                <div style={{ display: 'grid', gap: '0.35rem' }}>
+                  <span>Language</span>
+                  <div
+                    style={{
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '0.65rem',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                    }}
+                  >
+                    {formatLanguageLabel(resolvedLanguage)}
+                  </div>
+                </div>
 
                 <div style={{ display: 'grid', gap: '0.75rem', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '0.9rem' }}>
                   <strong>Profile</strong>

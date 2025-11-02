@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const document = renderResumePdf(templateId, content);
+  const document = await renderResumePdf(templateId, content);
   const pdfBuffer = await renderToBuffer(document);
 
   const baseTitle = (content.documentTitle || 'resume').trim() || 'resume';

@@ -14,6 +14,7 @@ const DEFAULT_FONT_FAMILY = 'Helvetica';
 const JAPANESE_FONT_FAMILY = 'NotoSansJP';
 
 let fontsRegistered = false;
+let fontsRegistrationPromise: Promise<void> | null = null;
 let japaneseFontAvailable = false;
 
 type FontCandidate = {
@@ -23,8 +24,27 @@ type FontCandidate = {
 };
 
 const PATH_LIST_SEPARATOR = process.platform === 'win32' ? ';' : ':';
+const DEFAULT_FONT_CACHE_DIR = '.next/cache/pdf-fonts';
+
+const JAPANESE_FONT_DOWNLOADS = {
+  regular: [
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/refs/heads/main/Sans/OTF/Japanese/NotoSansJP-Regular.otf',
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansJP-Regular.otf',
+  ],
+  medium: [
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/refs/heads/main/Sans/OTF/Japanese/NotoSansJP-Medium.otf',
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansJP-Medium.otf',
+  ],
+  bold: [
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/refs/heads/main/Sans/OTF/Japanese/NotoSansJP-Bold.otf',
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansJP-Bold.otf',
+  ],
+} as const;
 
 const japaneseCharacterPattern = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff01-\uff60\uff66-\uff9f\uffe0-\uffe6]/;
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeHttps: typeof import('https') | null = isServer ? require('https') : null;
 
 function pathListSeparator() {
   return PATH_LIST_SEPARATOR;
@@ -75,13 +95,119 @@ function findExistingFont(candidates: string[]): FontCandidate | null {
   return null;
 }
 
-function ensurePdfFontsRegistered() {
-  if (fontsRegistered) {
-    return;
+async function downloadFont(url: string, destination: string): Promise<boolean> {
+  if (!nodeFs || !nodePath || !nodeHttps) {
+    return false;
   }
 
-  fontsRegistered = true;
+  await nodeFs.promises.mkdir(nodePath.dirname(destination), { recursive: true }).catch(() => undefined);
 
+  const tempPath = `${destination}.download`;
+
+  return new Promise((resolve) => {
+    const request = nodeHttps.get(url, (response) => {
+      if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume();
+        downloadFont(response.headers.location, destination).then(resolve);
+        return;
+      }
+
+      if (!response.statusCode || response.statusCode >= 400) {
+        response.resume();
+        resolve(false);
+        return;
+      }
+
+      const fileStream = nodeFs.createWriteStream(tempPath);
+      response.pipe(fileStream);
+
+      const cleanUp = async () => {
+        try {
+          await nodeFs.promises.unlink(tempPath);
+        } catch (error) {
+          // Ignore missing temp file cleanup errors.
+        }
+      };
+
+      fileStream.on('finish', () => {
+        fileStream.close(async () => {
+          try {
+            await nodeFs.promises.rename(tempPath, destination);
+            resolve(true);
+          } catch (error) {
+            await cleanUp();
+            resolve(false);
+          }
+        });
+      });
+
+      fileStream.on('error', async () => {
+        fileStream.close();
+        await cleanUp();
+        resolve(false);
+      });
+    });
+
+    request.on('error', () => {
+      resolve(false);
+    });
+  });
+}
+
+async function ensureFontFile(filePath: string, urls: readonly string[]): Promise<FontCandidate | null> {
+  if (!nodeFs) {
+    return null;
+  }
+
+  try {
+    if (nodeFs.existsSync(filePath)) {
+      return { path: filePath };
+    }
+  } catch (error) {
+    // Continue with download attempt when existence checks fail.
+  }
+
+  for (const url of urls) {
+    try {
+      const success = await downloadFont(url, filePath);
+      if (success) {
+        return { path: filePath };
+      }
+    } catch (error) {
+      // Try the next fallback URL if the download fails.
+    }
+  }
+
+  return null;
+}
+
+async function downloadJapaneseFontSet(baseDirectory: string) {
+  if (!nodeFs || !nodePath || !nodeHttps) {
+    return null;
+  }
+
+  const regular = await ensureFontFile(
+    nodePath.join(baseDirectory, 'NotoSansJP-Regular.otf'),
+    JAPANESE_FONT_DOWNLOADS.regular
+  );
+  const medium = await ensureFontFile(
+    nodePath.join(baseDirectory, 'NotoSansJP-Medium.otf'),
+    JAPANESE_FONT_DOWNLOADS.medium
+  );
+  const bold = await ensureFontFile(nodePath.join(baseDirectory, 'NotoSansJP-Bold.otf'), JAPANESE_FONT_DOWNLOADS.bold);
+
+  if (!regular && !medium && !bold) {
+    return null;
+  }
+
+  return { regular, medium, bold } as {
+    regular: FontCandidate | null;
+    medium: FontCandidate | null;
+    bold: FontCandidate | null;
+  };
+}
+
+async function registerJapaneseFonts() {
   if (!nodePath) {
     return;
   }
@@ -185,9 +311,29 @@ function ensurePdfFontsRegistered() {
     'C:\\Windows\\Fonts\\meiryob.ttc::0',
   ]);
 
-  const regular = findExistingFont(regularCandidates);
-  const medium = findExistingFont(mediumCandidates);
-  const bold = findExistingFont(boldCandidates);
+  let regular = findExistingFont(regularCandidates);
+  let medium = findExistingFont(mediumCandidates);
+  let bold = findExistingFont(boldCandidates);
+
+  if ((!regular || !bold) && nodePath) {
+    const cacheDirectory = nodePath.join(projectRoot, DEFAULT_FONT_CACHE_DIR);
+    const downloaded = await downloadJapaneseFontSet(cacheDirectory);
+
+    if (downloaded?.regular) {
+      regular = regular ?? downloaded.regular;
+      regularCandidates.unshift(downloaded.regular.path);
+    }
+
+    if (downloaded?.medium) {
+      medium = medium ?? downloaded.medium;
+      mediumCandidates.unshift(downloaded.medium.path);
+    }
+
+    if (downloaded?.bold) {
+      bold = bold ?? downloaded.bold;
+      boldCandidates.unshift(downloaded.bold.path);
+    }
+  }
 
   const fontEntries: Array<{ src: string; fontWeight: number; fontIndex?: number; postscriptName?: string }> = [];
 
@@ -263,6 +409,25 @@ function ensurePdfFontsRegistered() {
   }
 }
 
+async function preparePdfFonts() {
+  if (fontsRegistered || !isServer) {
+    return;
+  }
+
+  if (!fontsRegistrationPromise) {
+    fontsRegistrationPromise = (async () => {
+      try {
+        await registerJapaneseFonts();
+      } finally {
+        fontsRegistered = true;
+        fontsRegistrationPromise = null;
+      }
+    })();
+  }
+
+  await fontsRegistrationPromise;
+}
+
 function contentContainsJapanese(content: ResumeDraftContent): boolean {
   const stack: unknown[] = [content];
 
@@ -289,8 +454,6 @@ type FontPreference = {
 };
 
 function getFontFamily(content: ResumeDraftContent, options?: FontPreference) {
-  ensurePdfFontsRegistered();
-
   if (
     japaneseFontAvailable &&
     (options?.preferJapanese || content.language?.toLowerCase().startsWith('ja') || contentContainsJapanese(content))
@@ -2527,7 +2690,8 @@ const pdfRenderers: Record<string, (content: ResumeDraftContent) => JSX.Element>
   'japanese-rirekisho': japanesePdf,
 };
 
-export function renderResumePdf(templateId: string, content: ResumeDraftContent) {
+export async function renderResumePdf(templateId: string, content: ResumeDraftContent) {
+  await preparePdfFonts();
   const renderer = pdfRenderers[templateId] ?? ariaPdf;
   return renderer(content);
 }

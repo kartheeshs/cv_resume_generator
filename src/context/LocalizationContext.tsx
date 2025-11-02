@@ -312,7 +312,6 @@ type TranslationDefinition = {
       draftNotFound: string;
       draftLoaded: string;
       draftLoadFailed: string;
-      missingTitle: string;
       draftUpdated: string;
       draftCreated: string;
       draftSaveFailed: string;
@@ -775,7 +774,6 @@ const translations: Record<Locale, TranslationDefinition> = {
         draftNotFound: 'Draft not found.',
         draftLoaded: 'Draft loaded into the editor.',
         draftLoadFailed: 'Unable to load draft.',
-        missingTitle: 'Please provide a document title.',
         draftUpdated: 'Draft updated successfully.',
         draftCreated: 'Draft created successfully.',
         draftSaveFailed: 'Unable to save draft. Please try again.',
@@ -1237,7 +1235,6 @@ const translations: Record<Locale, TranslationDefinition> = {
         draftNotFound: '下書きが見つかりません。',
         draftLoaded: '下書きをエディターに読み込みました。',
         draftLoadFailed: '下書きを読み込めませんでした。',
-        missingTitle: 'ドキュメントタイトルを入力してください。',
         draftUpdated: '下書きを更新しました。',
         draftCreated: '下書きを作成しました。',
         draftSaveFailed: '下書きを保存できませんでした。もう一度お試しください。',
