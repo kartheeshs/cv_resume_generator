@@ -17,7 +17,7 @@ export function TopNav() {
   const pathname = usePathname();
   const onAdminRoute = pathname?.startsWith('/admin');
   const inWorkspace = pathname?.startsWith('/dashboard');
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const { copy, language, setLanguage } = useLocalization();
   const { nav } = copy;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -31,6 +31,9 @@ export function TopNav() {
   }
 
   const toggleLabel = language === 'ja' ? 'メニューを開閉' : 'Toggle menu';
+
+  const onProPlan = profile?.entitlements?.plan === 'pro';
+  const showWorkspaceSubscribeCta = inWorkspace && !onProPlan;
 
   return (
     <header className={styles.root}>
@@ -91,7 +94,7 @@ export function TopNav() {
         </div>
 
         <div className={styles.actions}>
-          {inWorkspace && (
+          {showWorkspaceSubscribeCta && (
             <div className={styles.workspaceActions}>
               <Link href="/" className={styles.visitLink}>
                 {nav.visitWebsite}
@@ -158,7 +161,7 @@ export function TopNav() {
           </nav>
         )}
 
-        {inWorkspace && (
+        {showWorkspaceSubscribeCta && (
           <div className={styles.mobileSection}>
             <Link href="/" className={styles.mobileNavLink}>
               {nav.visitWebsite}

@@ -55,6 +55,14 @@ interface DownloadLog {
   createdAt?: Date;
 }
 
+type DashboardStatusTone = 'info' | 'success' | 'warning' | 'error';
+
+interface DashboardStatus {
+  id: number;
+  message: string;
+  tone: DashboardStatusTone;
+}
+
 function deepClone<T>(value: T): T {
   const clone = (globalThis as typeof globalThis & { structuredClone?: <U>(input: U) => U }).structuredClone;
   if (typeof clone === 'function') {
@@ -129,6 +137,33 @@ const DASHBOARD_AD_NOTE_STYLE: CSSProperties = {
   color: '#334155',
   fontSize: '0.8rem',
   fontWeight: 600,
+};
+
+const STATUS_TONE_STYLES: Record<DashboardStatusTone, { background: string; border: string; color: string; accent: string }> = {
+  info: {
+    background: 'rgba(37, 99, 235, 0.08)',
+    border: 'rgba(37, 99, 235, 0.25)',
+    color: '#1d4ed8',
+    accent: '#2563eb',
+  },
+  success: {
+    background: 'rgba(22, 163, 74, 0.12)',
+    border: 'rgba(22, 163, 74, 0.3)',
+    color: '#15803d',
+    accent: '#22c55e',
+  },
+  warning: {
+    background: 'rgba(217, 119, 6, 0.14)',
+    border: 'rgba(217, 119, 6, 0.32)',
+    color: '#b45309',
+    accent: '#f97316',
+  },
+  error: {
+    background: 'rgba(220, 38, 38, 0.14)',
+    border: 'rgba(220, 38, 38, 0.32)',
+    color: '#b91c1c',
+    accent: '#ef4444',
+  },
 };
 
 function emptyExperience(): ExperienceEntry {
@@ -293,7 +328,30 @@ export function ResumeDashboard() {
       templateId: definition?.id ?? defaultTemplateId,
     };
   });
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatusState] = useState<DashboardStatus | null>(null);
+
+  const showStatus = useCallback(
+    (message: string, tone: DashboardStatusTone = 'info') => {
+      setStatusState({
+        id: Date.now(),
+        message,
+        tone,
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!status) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setStatusState(null);
+    }, 4000);
+
+    return () => clearTimeout(timeout);
+  }, [status]);
   const [loadingDrafts, setLoadingDrafts] = useState(true);
   const [activeSection, setActiveSection] = useState<DashboardSection>('resume');
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
@@ -363,12 +421,12 @@ export function ResumeDashboard() {
         );
       } catch (error) {
         console.error(error);
-        setStatus(statuses.loadTemplatesError);
+        showStatus(statuses.loadTemplatesError, 'error');
       }
     };
 
     loadTemplates();
-  }, [user]);
+  }, [showStatus, statuses.loadTemplatesError, user]);
 
   useEffect(() => {
     if (!user) {
@@ -395,12 +453,12 @@ export function ResumeDashboard() {
 
         if (!response.ok || !payload) {
           console.error('Failed to load checkout session details', payload);
-          setStatus(statuses.subscriptionRefreshFailed);
+          showStatus(statuses.subscriptionRefreshFailed, 'error');
           return;
         }
 
         if (payload.status !== 'complete') {
-          setStatus(statuses.checkoutCancelled);
+          showStatus(statuses.checkoutCancelled, 'warning');
           return;
         }
 
@@ -427,10 +485,10 @@ export function ResumeDashboard() {
 
         await updateDoc(doc(db, 'users', user.uid), updates);
         await refreshProfile();
-        setStatus(statuses.subscriptionUpgraded);
+        showStatus(statuses.subscriptionUpgraded, 'success');
       } catch (error) {
         console.error('Failed to sync subscription', error);
-        setStatus(statuses.subscriptionRefreshFailed);
+        showStatus(statuses.subscriptionRefreshFailed, 'error');
       } finally {
         setProcessedSessionId(sessionId);
         setSyncingSubscription(false);
@@ -443,6 +501,7 @@ export function ResumeDashboard() {
     processedSessionId,
     refreshProfile,
     router,
+    showStatus,
     searchParams,
     statuses.checkoutCancelled,
     statuses.subscriptionRefreshFailed,
@@ -502,13 +561,13 @@ export function ResumeDashboard() {
       },
       (error) => {
         console.error('Failed to load drafts', error);
-        setStatus(statuses.loadDraftsError);
+        showStatus(statuses.loadDraftsError, 'error');
         setLoadingDrafts(false);
       }
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [showStatus, statuses.loadDraftsError, user]);
 
   useEffect(() => {
     if (!user) {
@@ -543,13 +602,13 @@ export function ResumeDashboard() {
       },
       (error) => {
         console.error('Failed to load downloads', error);
-        setStatus(statuses.loadDownloadsError);
+        showStatus(statuses.loadDownloadsError, 'error');
         setLoadingDownloads(false);
       }
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [showStatus, statuses.loadDownloadsError, user]);
 
   const selectedTemplateDefinition = useMemo(
     () => getResumeTemplateDefinition(form.templateId) ?? resumeTemplateDefinitions[defaultTemplateId],
@@ -603,7 +662,7 @@ export function ResumeDashboard() {
   const syncSubscription = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!user) {
-        setStatus(statuses.signInRequired);
+        showStatus(statuses.signInRequired, 'warning');
         return;
       }
       setSyncingSubscription(true);
@@ -611,34 +670,47 @@ export function ResumeDashboard() {
         await new Promise((resolve) => setTimeout(resolve, 350));
         await refreshProfile();
         if (!options?.silent) {
-          setStatus(statuses.subscriptionRefreshed);
+          showStatus(statuses.subscriptionRefreshed, 'success');
         }
       } catch (error) {
         console.error('Demo subscription sync failed', error);
-        setStatus(statuses.subscriptionRefreshFailed);
+        showStatus(statuses.subscriptionRefreshFailed, 'error');
       } finally {
         setSyncingSubscription(false);
       }
     },
-    [refreshProfile, user]
+    [
+      refreshProfile,
+      showStatus,
+      statuses.signInRequired,
+      statuses.subscriptionRefreshed,
+      statuses.subscriptionRefreshFailed,
+      user,
+    ]
   );
 
   const openBillingPortal = useCallback(async () => {
     if (!user) {
-      setStatus(statuses.billingSignInRequired);
+      showStatus(statuses.billingSignInRequired, 'warning');
       return;
     }
     setOpeningPortal(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 300));
-      setStatus(statuses.billingDisabled);
+      showStatus(statuses.billingDisabled, 'info');
     } catch (error) {
       console.error('Demo billing portal error', error);
-      setStatus(statuses.billingError);
+      showStatus(statuses.billingError, 'error');
     } finally {
       setOpeningPortal(false);
     }
-  }, [user]);
+  }, [
+    showStatus,
+    statuses.billingDisabled,
+    statuses.billingError,
+    statuses.billingSignInRequired,
+    user,
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !user) {
@@ -651,16 +723,22 @@ export function ResumeDashboard() {
     }
     if (upgradeStatus === 'success') {
       syncSubscription({ silent: true }).then(() => {
-        setStatus(statuses.subscriptionUpgraded);
+        showStatus(statuses.subscriptionUpgraded, 'success');
       });
     } else if (upgradeStatus === 'cancelled') {
-      setStatus(statuses.checkoutCancelled);
+      showStatus(statuses.checkoutCancelled, 'warning');
     }
     params.delete('upgrade');
     const newQuery = params.toString();
     const nextUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`;
     window.history.replaceState(null, '', nextUrl);
-  }, [syncSubscription, user]);
+  }, [
+    showStatus,
+    statuses.checkoutCancelled,
+    statuses.subscriptionUpgraded,
+    syncSubscription,
+    user,
+  ]);
 
   const hydrateFromTemplate = (templateId: string) => {
     const definition = getResumeTemplateDefinition(templateId);
@@ -675,7 +753,7 @@ export function ResumeDashboard() {
       id: undefined,
     });
     setViewMode('edit');
-    setStatus(`Loaded the ${definition.name} template.`);
+    showStatus(`Loaded the ${definition.name} template.`, 'info');
     setActiveSection('resume');
   };
 
@@ -684,7 +762,7 @@ export function ResumeDashboard() {
       const ref = doc(db, 'drafts', draftId);
       const snapshot = await getDoc(ref);
       if (!snapshot.exists()) {
-        setStatus(statuses.draftNotFound);
+        showStatus(statuses.draftNotFound, 'error');
         return;
       }
 
@@ -708,11 +786,11 @@ export function ResumeDashboard() {
         certifications: parseCertifications(data.certifications, definition.defaultContent.certifications),
       });
       setViewMode('edit');
-      setStatus(statuses.draftLoaded);
+      showStatus(statuses.draftLoaded, 'info');
       setActiveSection('resume');
     } catch (error) {
       console.error(error);
-      setStatus(statuses.draftLoadFailed);
+      showStatus(statuses.draftLoadFailed, 'error');
     }
   };
 
@@ -773,7 +851,7 @@ export function ResumeDashboard() {
   const saveDraft = async (): Promise<string | null> => {
     if (!user) return null;
     if (!form.documentTitle.trim()) {
-      setStatus(statuses.missingTitle);
+      showStatus(statuses.missingTitle, 'warning');
       return null;
     }
 
@@ -797,7 +875,7 @@ export function ResumeDashboard() {
 
       if (form.id) {
         await setDoc(doc(db, 'drafts', form.id), payload, { merge: true });
-        setStatus(statuses.draftUpdated);
+        showStatus(statuses.draftUpdated, 'success');
         return form.id;
       }
 
@@ -806,22 +884,22 @@ export function ResumeDashboard() {
         createdAt: serverTimestamp(),
       });
       setForm((previous) => ({ ...previous, id: ref.id }));
-      setStatus(statuses.draftCreated);
+      showStatus(statuses.draftCreated, 'success');
       return ref.id;
     } catch (error) {
       console.error(error);
-      setStatus(statuses.draftSaveFailed);
+      showStatus(statuses.draftSaveFailed, 'error');
       return null;
     }
   };
 
   const startCheckout = useCallback(async () => {
     if (!user) {
-      setStatus(statuses.billingSignInRequired);
+      showStatus(statuses.billingSignInRequired, 'warning');
       return;
     }
     if (!profile) {
-      setStatus(statuses.missingEntitlements);
+      showStatus(statuses.missingEntitlements, 'error');
       return;
     }
 
@@ -840,7 +918,7 @@ export function ResumeDashboard() {
       });
 
       if (response.status === 503) {
-        setStatus(statuses.billingDisabled);
+        showStatus(statuses.billingDisabled, 'info');
         return;
       }
 
@@ -850,7 +928,7 @@ export function ResumeDashboard() {
 
       if (!response.ok) {
         console.error('Failed to create checkout session', payload);
-        setStatus(statuses.checkoutFailed);
+        showStatus(statuses.checkoutFailed, 'error');
         return;
       }
 
@@ -871,22 +949,31 @@ export function ResumeDashboard() {
         return;
       }
 
-      setStatus(statuses.checkoutFailed);
+      showStatus(statuses.checkoutFailed, 'error');
     } catch (error) {
       console.error('Failed to start checkout', error);
-      setStatus(statuses.billingError);
+      showStatus(statuses.billingError, 'error');
     } finally {
       setStartingCheckout(false);
     }
-  }, [profile, statuses, user]);
+  }, [
+    profile,
+    showStatus,
+    statuses.billingDisabled,
+    statuses.billingError,
+    statuses.billingSignInRequired,
+    statuses.checkoutFailed,
+    statuses.missingEntitlements,
+    user,
+  ]);
 
   const generatePdf = async () => {
     if (!entitlements) {
-      setStatus(statuses.missingEntitlements);
+      showStatus(statuses.missingEntitlements, 'error');
       return;
     }
     if (!isProPlan && (entitlements.remainingDownloads ?? 0) <= 0) {
-      setStatus(statuses.downloadLimitReached);
+      showStatus(statuses.downloadLimitReached, 'warning');
       return;
     }
 
@@ -950,10 +1037,10 @@ export function ResumeDashboard() {
         }
         await refreshProfile();
       }
-      setStatus(statuses.pdfSuccess);
+      showStatus(statuses.pdfSuccess, 'success');
     } catch (error) {
       console.error(error);
-      setStatus(statuses.pdfFailed);
+      showStatus(statuses.pdfFailed, 'error');
     }
   };
 
@@ -967,7 +1054,7 @@ export function ResumeDashboard() {
       id: undefined,
     });
     setViewMode('edit');
-    setStatus(statuses.editorReset);
+    showStatus(statuses.editorReset, 'info');
   };
 
   const addExperience = () => setForm((previous) => ({ ...previous, workExperiences: [...previous.workExperiences, emptyExperience()] }));
@@ -997,13 +1084,65 @@ export function ResumeDashboard() {
       certifications: previous.certifications.filter((_, certificationIndex) => certificationIndex !== index),
     }));
 
+  const statusTone = status ? STATUS_TONE_STYLES[status.tone] : null;
+
   return (
-    <section style={{ padding: '2rem 1.25rem', background: '#f8fafc', minHeight: '100%' }}>
-      <div
-        style={{
-          maxWidth: '1280px',
-          margin: '0 auto',
-          display: 'grid',
+    <>
+      {status && statusTone ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: '1.5rem',
+            right: '1.5rem',
+            padding: '0.85rem 1.1rem',
+            borderRadius: '0.9rem',
+            background: statusTone.background,
+            border: `1px solid ${statusTone.border}`,
+            color: statusTone.color,
+            boxShadow: '0 20px 45px -20px rgba(15, 23, 42, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            pointerEvents: 'none',
+            zIndex: 60,
+            minWidth: '240px',
+          }}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={statusTone.accent}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <circle cx="12" cy="12" r="9" strokeOpacity="0.45" />
+            <path d="M12 3a9 9 0 0 1 9 9">
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from="0 12 12"
+                to="360 12 12"
+                dur="0.9s"
+                repeatCount="indefinite"
+              />
+            </path>
+          </svg>
+          <span style={{ fontWeight: 600 }}>{status.message}</span>
+        </div>
+      ) : null}
+
+      <section style={{ padding: '2rem 1.25rem', background: '#f8fafc', minHeight: '100%' }}>
+        <div
+          style={{
+            maxWidth: '1280px',
+            margin: '0 auto',
+            display: 'grid',
           gap: '1.75rem',
         }}
       >
@@ -1276,19 +1415,6 @@ export function ResumeDashboard() {
                   >
                     <span>{dashboardCopy.downloadLimitExceeded}</span>
                     <span style={{ fontWeight: 500 }}>{dashboardCopy.downloadResetByAdmin}</span>
-                  </div>
-                )}
-                {status && (
-                  <div
-                    style={{
-                      padding: '0.75rem 1rem',
-                      borderRadius: '0.75rem',
-                      background: '#eff6ff',
-                      color: '#1d4ed8',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {status}
                   </div>
                 )}
               </div>
@@ -2537,7 +2663,8 @@ export function ResumeDashboard() {
             </section>
           )}
         </div>
-      </div>
-    </section>
+        </div>
+      </section>
+    </>
   );
 }

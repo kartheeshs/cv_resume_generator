@@ -936,6 +936,10 @@ function getListItem(content: ResumeDraftContent, id: string, index: number, fal
   return getListSection(content, id)?.items[index] ?? fallback;
 }
 
+function getListItems(content: ResumeDraftContent, id: string, fallback: string[] = []) {
+  return getListSection(content, id)?.items ?? fallback;
+}
+
 function parseYearMonth(value?: string): [string, string] {
   if (!value) return ['', ''];
   if (value.includes('-')) {
@@ -1265,6 +1269,9 @@ const turnerStyles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 1.4,
   },
+  bulletList: {
+    marginTop: 6,
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1296,6 +1303,661 @@ const turnerStyles = StyleSheet.create({
     textAlign: 'right',
   },
 });
+
+function turnerPdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
+
+  const coursesLeft = getListItems(content, 'turner-courses-left', [
+    'Immersive Cost Analytics (LSE)',
+    'Financial Statement Analysis (UCSF)',
+    'Advanced Excel for Financial Modeling',
+    'Derivatives (Options Trading Institute)',
+  ]);
+  const coursesRight = getListItems(content, 'turner-courses-right', [
+    'Advanced Public Sector Financial Reporting and Analysis',
+    'Corporate Finance',
+    'Financial Risk Management (GARP)',
+    'Portfolio Simulation Workshop',
+  ]);
+  const achievementsLeft = getListItems(content, 'turner-achievements-left', [
+    'Civic Service Awardee (2018) — Santa Monica Community',
+    'Leadership Fellowship (2019) — Berkeley Haas Center',
+  ]);
+  const achievementsRight = getListItems(content, 'turner-achievements-right', [
+    'Peer Inc. Group of Companies Special Recognition (2017)',
+    'Young Entrepreneur Summit Winner (2016)',
+  ]);
+  const interests = getListItems(content, 'turner-interests', [
+    'Machine Learning',
+    'Calligraphy',
+    'Astronomy',
+    'Photography',
+  ]);
+  const references = getListItems(content, 'turner-references');
+
+  const volunteerExperiences = content.workExperiences.filter(
+    (experience) => experience.category === 'Volunteer Experience'
+  );
+  const professionalExperiences = content.workExperiences.filter(
+    (experience) => experience.category !== 'Volunteer Experience'
+  );
+
+  const languagesGroup = content.skillGroups.find((group) => group.id === 'turner-languages');
+  const certificationsGroup = content.skillGroups.find((group) => group.id === 'turner-certifications');
+
+  const contactValues = [
+    content.profile.contact.phone,
+    content.profile.contact.email,
+    content.profile.contact.location,
+    content.profile.contact.website,
+  ].filter(Boolean);
+
+  const renderExperienceList = (
+    experiences: ResumeDraftContent['workExperiences'],
+    keyPrefix: string
+  ) =>
+    experiences.map((experience, index) => (
+      <View key={`${keyPrefix}-${experience.id}-${index}`} style={turnerStyles.experience}>
+        <View style={turnerStyles.experienceHeader}>
+          <View>
+            <Text style={turnerStyles.experienceTitle}>{experience.title}</Text>
+            {experience.company ? (
+              <Text style={[turnerStyles.experienceCompany, { fontWeight: mediumWeight }]}> 
+                {experience.company}
+              </Text>
+            ) : null}
+            {experience.location ? (
+              <Text style={turnerStyles.experienceLocation}>{experience.location}</Text>
+            ) : null}
+          </View>
+          {formatDateRange(experience.startDate, experience.endDate) ? (
+            <Text style={[turnerStyles.experienceDates, { fontWeight: mediumWeight }]}> 
+              {formatDateRange(experience.startDate, experience.endDate)}
+            </Text>
+          ) : null}
+        </View>
+        {experience.bullets.length > 0 ? (
+          <View style={turnerStyles.bulletList}>
+            {experience.bullets.map((bullet, bulletIndex) => (
+              <Text key={`${experience.id}-bullet-${bulletIndex}`} style={turnerStyles.bullet}>
+                • {bullet}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    ));
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          padding: 0,
+          backgroundColor: '#e2e8f0',
+          fontFamily: font.family,
+        }}
+      >
+        <View style={turnerStyles.background}>
+          <View style={turnerStyles.sheet}>
+            <View style={turnerStyles.header}>
+              <View>
+                <Text style={turnerStyles.name}>{content.profile.fullName}</Text>
+                {content.profile.role ? (
+                  <Text style={[turnerStyles.role, { fontWeight: mediumWeight }]}>
+                    {content.profile.role}
+                  </Text>
+                ) : null}
+                {content.profile.tagline ? (
+                  <Text style={turnerStyles.tagline}>{content.profile.tagline}</Text>
+                ) : null}
+              </View>
+              {contactValues.length > 0 ? (
+                <Text style={turnerStyles.contact}>{contactValues.join('\n')}</Text>
+              ) : null}
+            </View>
+
+            <View style={turnerStyles.divider} />
+
+            <View style={turnerStyles.section}>
+              <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Courses &amp; Training</Text>
+              <View style={turnerStyles.twoColumn}>
+                <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
+                  {coursesLeft.map((item, index) => (
+                    <Text key={`course-left-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+                <View style={turnerStyles.column}>
+                  {coursesRight.map((item, index) => (
+                    <Text key={`course-right-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {content.education.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Education</Text>
+                {content.education.map((entry) => (
+                  <View key={entry.id} style={turnerStyles.educationItem}>
+                    <Text style={turnerStyles.educationSchool}>{entry.school}</Text>
+                    {entry.degree ? (
+                      <Text style={[turnerStyles.educationDegree, { fontWeight: mediumWeight }]}>
+                        {entry.degree}
+                      </Text>
+                    ) : null}
+                    {formatDateRange(entry.startDate, entry.endDate) ? (
+                      <Text style={turnerStyles.educationDates}>
+                        {formatDateRange(entry.startDate, entry.endDate)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            <View style={turnerStyles.section}>
+              <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Achievements &amp; Awards</Text>
+              <View style={turnerStyles.twoColumn}>
+                <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
+                  {achievementsLeft.map((item, index) => (
+                    <Text key={`achievement-left-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+                <View style={turnerStyles.column}>
+                  {achievementsRight.map((item, index) => (
+                    <Text key={`achievement-right-${index}`} style={turnerStyles.listItem}>
+                      {item}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {volunteerExperiences.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Volunteer Experience</Text>
+                {renderExperienceList(volunteerExperiences, 'volunteer')}
+              </View>
+            ) : null}
+
+            <View style={turnerStyles.section}>
+              <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Interests &amp; Hobbies</Text>
+              <View style={turnerStyles.chipRow}>
+                {interests.map((interest) => (
+                  <Text key={interest} style={[turnerStyles.chip, { fontWeight: mediumWeight }]}>
+                    {interest}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Page>
+
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          padding: 0,
+          backgroundColor: '#e2e8f0',
+          fontFamily: font.family,
+        }}
+      >
+        <View style={turnerStyles.background}>
+          <View style={turnerStyles.sheet}>
+            <View style={turnerStyles.header}>
+              <Text style={[turnerStyles.name, { fontSize: 20 }]}>{content.profile.fullName}</Text>
+              <Text style={turnerStyles.pageFooter}>Page 2 of 2</Text>
+            </View>
+
+            <View style={turnerStyles.divider} />
+
+            {content.summary ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Professional Summary</Text>
+                <Text style={turnerStyles.paragraph}>{content.summary}</Text>
+              </View>
+            ) : null}
+
+            {professionalExperiences.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Professional Experience</Text>
+                {renderExperienceList(professionalExperiences, 'professional')}
+              </View>
+            ) : null}
+
+            {languagesGroup ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>
+                  {languagesGroup.title}
+                </Text>
+                {languagesGroup.skills.map((skill) => (
+                  <Text key={skill} style={turnerStyles.simpleList}>
+                    {skill}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {certificationsGroup ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>
+                  {certificationsGroup.title}
+                </Text>
+                {certificationsGroup.skills.map((skill) => (
+                  <Text key={skill} style={turnerStyles.simpleList}>
+                    {skill}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {content.certifications.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Credentials</Text>
+                {content.certifications.map((certificate) => (
+                  <Text key={certificate.id} style={turnerStyles.simpleList}>
+                    <Text style={{ fontWeight: mediumWeight }}>{certificate.name}</Text>
+                    {certificate.date ? ` — ${certificate.date}` : ''}
+                    {certificate.organization ? ` · ${certificate.organization}` : ''}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {references.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>References</Text>
+                {references.map((reference, index) => (
+                  <Text key={`reference-${index}`} style={turnerStyles.simpleList}>
+                    {reference}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+function japanesePdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content, { preferJapanese: true });
+  const mediumWeight = font.weights.medium;
+
+  const [defaultYear, defaultMonth, defaultDay] = getDefaultDateParts();
+  const [applicationYear, applicationMonth, applicationDay] = parseYearMonthDay(
+    getListItem(content, 'japanese-application-date', 0, `${defaultYear}-${defaultMonth}-${defaultDay}`)
+  );
+  const normalizedYear = applicationYear || defaultYear;
+  const normalizedMonth = applicationMonth || defaultMonth;
+  const normalizedDay = applicationDay || defaultDay;
+  const applicationDateLabel = `${normalizedYear}年${normalizedMonth}月${normalizedDay}日現在`;
+
+  const furigana = getListItem(content, 'japanese-furigana', 0, 'やまだ たろう');
+  const birth = getListItem(content, 'japanese-personal', 0, '1995年4月12日生（満28歳）');
+  const gender = getListItem(content, 'japanese-personal', 1, '男');
+  const commute = getListItem(content, 'japanese-personal', 2, '通勤時間 45分');
+  const addressLine = getListItem(
+    content,
+    'japanese-address',
+    0,
+    '〒150-0002 東京都渋谷区渋谷1-2-3 サンプルマンション301号'
+  );
+  const nearestStation = getListItem(content, 'japanese-address', 1, '最寄駅 代々木上原駅');
+  const dependents = getListItem(content, 'japanese-household', 0, '扶養家族（配偶者を除く） 1人');
+  const spouse = getListItem(content, 'japanese-household', 1, '配偶者 あり・扶養義務 あり');
+  const emergency = getListSection(content, 'japanese-emergency');
+
+  const objective =
+    content.objective ??
+    getListItem(
+      content,
+      'japanese-goal',
+      0,
+      '御社の製品開発に携わり、国内市場のシェア拡大に貢献したいと考えております。'
+    );
+  const selfPr =
+    content.summary ??
+    getListItem(
+      content,
+      'japanese-selfpr',
+      0,
+      '前職では営業として年間120%の達成率を継続し、チームリーダーとして育成にも携わりました。'
+    );
+
+  const hobbies = getListItems(content, 'japanese-hobbies');
+  const licenses = getListItems(content, 'japanese-licenses');
+  const remarks = getListItems(content, 'japanese-remarks');
+
+  const educationEntries = [...content.education].sort((a, b) =>
+    (a.startDate ?? '').localeCompare(b.startDate ?? '')
+  );
+  const experienceEntries = [...content.workExperiences].sort((a, b) =>
+    (a.startDate ?? '').localeCompare(b.startDate ?? '')
+  );
+
+  const historyRows: { year: string; month: string; description: string }[] = [];
+  const pushHistory = (year: string, month: string, description: string) => {
+    if (!year && !month && !description) {
+      return;
+    }
+    historyRows.push({ year, month, description });
+  };
+
+  educationEntries.forEach((entry) => {
+    const [startYear, startMonth] = parseYearMonth(entry.startDate);
+    const [endYear, endMonth] = parseYearMonth(entry.endDate);
+    const baseLabel = entry.school || '学校';
+    if (startYear || startMonth || entry.school) {
+      pushHistory(startYear, startMonth, `${baseLabel} 入学`);
+    }
+    if (endYear || endMonth || entry.degree) {
+      const suffix = entry.degree ? `${entry.degree} 卒業` : '卒業';
+      pushHistory(endYear, endMonth, `${baseLabel} ${suffix}`.trim());
+    }
+  });
+
+  experienceEntries.forEach((entry) => {
+    const [startYear, startMonth] = parseYearMonth(entry.startDate);
+    const [endYear, endMonth] = parseYearMonth(entry.endDate);
+    const companyOrTitle = entry.company || entry.title || '';
+    const roleDescriptor = entry.company && entry.title ? `（${entry.title}）` : '';
+    if (startYear || startMonth || companyOrTitle) {
+      pushHistory(startYear, startMonth, `${companyOrTitle}${roleDescriptor} 入社`.trim());
+    }
+    if (endYear || endMonth) {
+      const status = entry.endDate ? '退職' : '在職中';
+      pushHistory(endYear, endMonth, `${companyOrTitle}${roleDescriptor} ${status}`.trim());
+    }
+  });
+
+  if (historyRows.length === 0) {
+    pushHistory('', '', '—');
+  }
+
+  const emergencyLines = emergency?.items ?? [];
+  const contactValues = [
+    content.profile.contact.phone,
+    content.profile.contact.email,
+  ].filter(Boolean);
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          padding: 24,
+          backgroundColor: '#f1f5f9',
+          fontFamily: font.family,
+        }}
+      >
+        <View style={japaneseStyles.container}>
+          <View style={japaneseStyles.applicationDateRow}>
+            <Text style={{ fontSize: 10 }}>{`（ ${applicationDateLabel} ）`}</Text>
+            <View style={{ flexDirection: 'row', marginLeft: 12 }}>
+              <View style={[japaneseStyles.dateBox, { marginRight: 4 }]}>
+                <Text>{normalizedYear}</Text>
+              </View>
+              <View style={[japaneseStyles.dateBox, { marginRight: 4 }]}>
+                <Text>{normalizedMonth}</Text>
+              </View>
+              <View style={japaneseStyles.dateBox}>
+                <Text>{normalizedDay}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={japaneseStyles.header}>
+            <View style={japaneseStyles.headerLeft}>
+              <Text style={japaneseStyles.title}>履歴書</Text>
+              <View style={japaneseStyles.nameGrid}>
+                <View style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text style={japaneseStyles.historyLabelText}>ふりがな</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={[japaneseStyles.furiganaText, { fontWeight: mediumWeight }]}>{furigana}</Text>
+                  </View>
+                </View>
+                <View style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text style={japaneseStyles.historyLabelText}>氏名</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={[japaneseStyles.nameText, { fontWeight: mediumWeight }]}>{content.profile.fullName}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View style={japaneseStyles.headerRight}>
+              <View style={japaneseStyles.photoBox}>
+                <Text>写真貼付</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 12 }}>
+            <View style={japaneseStyles.table}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>現住所</Text>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>住所</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{addressLine}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>最寄駅</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{nearestStation}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[japaneseStyles.table, { marginTop: 12 }]}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>連絡先</Text>
+              </View>
+              {contactValues.map((value, index) => (
+                <View key={`contact-${index}`} style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text style={japaneseStyles.historyLabelText}>{index === 0 ? '電話' : 'Eメール'}</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.historyDescriptionText}>{value}</Text>
+                  </View>
+                </View>
+              ))}
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>生年月日</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{birth}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>性別</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{gender}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>通勤</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{commute}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[japaneseStyles.table, { marginTop: 12 }]}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>家族</Text>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>扶養家族</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{dependents}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>配偶者</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{spouse}</Text>
+                </View>
+              </View>
+            </View>
+
+            {emergencyLines.length > 0 ? (
+              <View style={[japaneseStyles.table, { marginTop: 12 }]}>
+                <View style={japaneseStyles.tableHeading}>
+                  <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>緊急連絡先</Text>
+                </View>
+                {emergencyLines.map((line, index) => (
+                  <View key={`emergency-${index}`} style={japaneseStyles.gridRow}>
+                    <View style={japaneseStyles.gridLabel}>
+                      <Text style={japaneseStyles.historyLabelText}>{index === 0 ? '氏名' : '連絡先'}</Text>
+                    </View>
+                    <View style={japaneseStyles.gridValue}>
+                      <Text style={japaneseStyles.historyDescriptionText}>{line}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+
+          <View style={[japaneseStyles.table, { marginTop: 16 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>学歴・職歴</Text>
+            </View>
+            {historyRows.map((row, index) => (
+              <View key={`history-${index}`} style={japaneseStyles.historyRow}>
+                <View style={japaneseStyles.historyYear}>
+                  <Text style={japaneseStyles.historyLabelText}>{row.year}</Text>
+                </View>
+                <View style={japaneseStyles.historyMonth}>
+                  <Text style={japaneseStyles.historyLabelText}>{row.month}</Text>
+                </View>
+                <View style={japaneseStyles.historyDescription}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{row.description}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </Page>
+
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          padding: 24,
+          backgroundColor: '#f1f5f9',
+          fontFamily: font.family,
+        }}
+      >
+        <View style={japaneseStyles.container}>
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>志望の動機</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>{objective}</Text>
+            </View>
+          </View>
+
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>自己PR</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>{selfPr}</Text>
+            </View>
+          </View>
+
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>免許・資格</Text>
+            </View>
+            {licenses.length > 0 ? (
+              licenses.map((license, index) => (
+                <View key={`license-${index}`} style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.historyDescriptionText}>{license}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>特になし</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>趣味・特技</Text>
+            </View>
+            {hobbies.length > 0 ? (
+              hobbies.map((hobby, index) => (
+                <View key={`hobby-${index}`} style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.historyDescriptionText}>{hobby}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>—</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={japaneseStyles.table}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>本人希望欄</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>
+                {remarks.length > 0 ? remarks.join('\n') : '特記事項なし'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
 
 function ariaPdf(content: ResumeDraftContent) {
   const font = getFontConfig(content);
