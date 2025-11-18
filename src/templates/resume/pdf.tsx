@@ -1,45 +1,498 @@
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 import { ResumeDraftContent } from '@/types/resume';
 
-Font.register({
-  family: 'Inter',
-  fonts: [
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrKQ1nO0nDd3DTpQ.ttf',
+const isServer = typeof window === 'undefined';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeFs: typeof import('fs') | null = isServer ? require('fs') : null;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodePath: typeof import('path') | null = isServer ? require('path') : null;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeOs: typeof import('os') | null = isServer ? require('os') : null;
+
+const DEFAULT_FONT_FAMILY = 'Helvetica';
+const JAPANESE_FONT_FAMILY = 'NotoSansJP';
+
+let fontsRegistered = false;
+let fontsRegistrationPromise: Promise<void> | null = null;
+let japaneseFontAvailable = false;
+
+type FontCandidate = {
+  path: string;
+  fontIndex?: number;
+  postscriptName?: string;
+};
+
+const PATH_LIST_SEPARATOR = process.platform === 'win32' ? ';' : ':';
+const DEFAULT_FONT_CACHE_DIR = '.next/cache/pdf-fonts';
+
+const JAPANESE_FONT_DOWNLOADS = {
+  regular: [
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/refs/heads/main/Sans/OTF/Japanese/NotoSansJP-Regular.otf',
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansJP-Regular.otf',
+  ],
+  medium: [
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/refs/heads/main/Sans/OTF/Japanese/NotoSansJP-Medium.otf',
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansJP-Medium.otf',
+  ],
+  bold: [
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/refs/heads/main/Sans/OTF/Japanese/NotoSansJP-Bold.otf',
+    'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansJP-Bold.otf',
+  ],
+} as const;
+
+const japaneseCharacterPattern = /[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff01-\uff60\uff66-\uff9f\uffe0-\uffe6]/;
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeHttps: typeof import('https') | null = isServer ? require('https') : null;
+
+function pathListSeparator() {
+  return PATH_LIST_SEPARATOR;
+}
+
+function normalizeCandidatePath(candidate: string): FontCandidate {
+  if (!nodePath) {
+    return { path: candidate };
+  }
+
+  const [rawPath, rawIndex] = candidate.split('::');
+
+  const hasHomePrefix = rawPath.startsWith('~');
+  const resolvedPath = hasHomePrefix && nodeOs
+    ? nodePath.join(nodeOs.homedir(), rawPath.slice(1))
+    : rawPath;
+
+  if (rawIndex === undefined || rawIndex.length === 0) {
+    return { path: resolvedPath };
+  }
+
+  const numericIndex = Number(rawIndex);
+
+  if (Number.isFinite(numericIndex)) {
+    return { path: resolvedPath, fontIndex: numericIndex };
+  }
+
+  return { path: resolvedPath, postscriptName: rawIndex };
+}
+
+function findExistingFont(candidates: string[]): FontCandidate | null {
+  if (!nodeFs) {
+    return null;
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const normalized = normalizeCandidatePath(candidate);
+    try {
+      if (nodeFs.existsSync(normalized.path)) {
+        return normalized;
+      }
+    } catch (error) {
+      // Ignore inaccessible candidates and continue searching.
+    }
+  }
+
+  return null;
+}
+
+async function downloadFont(url: string, destination: string): Promise<boolean> {
+  if (!nodeFs || !nodePath || !nodeHttps) {
+    return false;
+  }
+
+  await nodeFs.promises.mkdir(nodePath.dirname(destination), { recursive: true }).catch(() => undefined);
+
+  const tempPath = `${destination}.download`;
+
+  return new Promise((resolve) => {
+    const request = nodeHttps.get(url, (response) => {
+      if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume();
+        downloadFont(response.headers.location, destination).then(resolve);
+        return;
+      }
+
+      if (!response.statusCode || response.statusCode >= 400) {
+        response.resume();
+        resolve(false);
+        return;
+      }
+
+      const fileStream = nodeFs.createWriteStream(tempPath);
+      response.pipe(fileStream);
+
+      const cleanUp = async () => {
+        try {
+          await nodeFs.promises.unlink(tempPath);
+        } catch (error) {
+          // Ignore missing temp file cleanup errors.
+        }
+      };
+
+      fileStream.on('finish', () => {
+        fileStream.close(async () => {
+          try {
+            await nodeFs.promises.rename(tempPath, destination);
+            resolve(true);
+          } catch (error) {
+            await cleanUp();
+            resolve(false);
+          }
+        });
+      });
+
+      fileStream.on('error', async () => {
+        fileStream.close();
+        await cleanUp();
+        resolve(false);
+      });
+    });
+
+    request.on('error', () => {
+      resolve(false);
+    });
+  });
+}
+
+async function ensureFontFile(filePath: string, urls: readonly string[]): Promise<FontCandidate | null> {
+  if (!nodeFs) {
+    return null;
+  }
+
+  try {
+    if (nodeFs.existsSync(filePath)) {
+      return { path: filePath };
+    }
+  } catch (error) {
+    // Continue with download attempt when existence checks fail.
+  }
+
+  for (const url of urls) {
+    try {
+      const success = await downloadFont(url, filePath);
+      if (success) {
+        return { path: filePath };
+      }
+    } catch (error) {
+      // Try the next fallback URL if the download fails.
+    }
+  }
+
+  return null;
+}
+
+async function downloadJapaneseFontSet(baseDirectory: string) {
+  if (!nodeFs || !nodePath || !nodeHttps) {
+    return null;
+  }
+
+  const regular = await ensureFontFile(
+    nodePath.join(baseDirectory, 'NotoSansJP-Regular.otf'),
+    JAPANESE_FONT_DOWNLOADS.regular
+  );
+  const medium = await ensureFontFile(
+    nodePath.join(baseDirectory, 'NotoSansJP-Medium.otf'),
+    JAPANESE_FONT_DOWNLOADS.medium
+  );
+  const bold = await ensureFontFile(nodePath.join(baseDirectory, 'NotoSansJP-Bold.otf'), JAPANESE_FONT_DOWNLOADS.bold);
+
+  if (!regular && !medium && !bold) {
+    return null;
+  }
+
+  return { regular, medium, bold } as {
+    regular: FontCandidate | null;
+    medium: FontCandidate | null;
+    bold: FontCandidate | null;
+  };
+}
+
+async function registerJapaneseFonts() {
+  if (!nodePath) {
+    return;
+  }
+
+  const projectRoot = process.cwd();
+
+  const regularCandidates: string[] = [];
+  const mediumCandidates: string[] = [];
+  const boldCandidates: string[] = [];
+
+  const pushCandidates = (target: string[], values: (string | undefined | null)[]) => {
+    for (const value of values) {
+      if (value) {
+        target.push(value);
+      }
+    }
+  };
+
+  pushCandidates(regularCandidates, [
+    process.env.PDF_JP_FONT_REGULAR,
+    process.env.NOTO_SANS_JP_REGULAR_PATH,
+  ]);
+  pushCandidates(mediumCandidates, [
+    process.env.PDF_JP_FONT_MEDIUM,
+    process.env.NOTO_SANS_JP_MEDIUM_PATH,
+  ]);
+  pushCandidates(boldCandidates, [
+    process.env.PDF_JP_FONT_BOLD,
+    process.env.NOTO_SANS_JP_BOLD_PATH,
+  ]);
+
+  const projectFontCandidates = [
+    nodePath.join(projectRoot, 'fonts'),
+    nodePath.join(projectRoot, 'public', 'fonts'),
+    nodePath.join(projectRoot, 'public', 'fonts', 'noto-sans-jp'),
+    nodePath.join(projectRoot, 'src', 'templates', 'resume', 'fonts'),
+  ];
+
+  const configuredDirectories = process.env.PDF_JP_FONT_DIR
+    ? process.env.PDF_JP_FONT_DIR.split(pathListSeparator())
+    : [];
+
+  for (const directory of configuredDirectories) {
+    const trimmed = directory.trim();
+    if (trimmed) {
+      projectFontCandidates.push(trimmed);
+    }
+  }
+
+  for (const base of projectFontCandidates) {
+    pushCandidates(regularCandidates, [
+      nodePath.join(base, 'NotoSansJP-Regular.otf'),
+      nodePath.join(base, 'NotoSansJP-Regular.ttf'),
+      nodePath.join(base, 'NotoSansCJKjp-Regular.otf'),
+      nodePath.join(base, 'NotoSansCJK-Regular.otf'),
+    ]);
+    pushCandidates(mediumCandidates, [
+      nodePath.join(base, 'NotoSansJP-Medium.otf'),
+      nodePath.join(base, 'NotoSansJP-Medium.ttf'),
+      nodePath.join(base, 'NotoSansJP-Regular.otf'),
+    ]);
+    pushCandidates(boldCandidates, [
+      nodePath.join(base, 'NotoSansJP-Bold.otf'),
+      nodePath.join(base, 'NotoSansJP-Bold.ttf'),
+      nodePath.join(base, 'NotoSansCJKjp-Bold.otf'),
+      nodePath.join(base, 'NotoSansCJK-Bold.otf'),
+      nodePath.join(base, 'NotoSansJP-Medium.otf'),
+      nodePath.join(base, 'NotoSansJP-Regular.otf'),
+    ]);
+  }
+
+  pushCandidates(regularCandidates, [
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc::0',
+    '/usr/share/fonts/truetype/noto/NotoSansCJKjp-Regular.otf',
+    '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.otf',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W3.ttc::0',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W4.ttc::0',
+    '/Library/Fonts/NotoSansCJKjp-Regular.otf',
+    'C:\\Windows\\Fonts\\YuGothR.ttc::0',
+    'C:\\Windows\\Fonts\\meiryo.ttc::0',
+    'C:\\Windows\\Fonts\\msgothic.ttc::0',
+  ]);
+
+  pushCandidates(mediumCandidates, [
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Medium.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc::1',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W6.ttc::0',
+    '/Library/Fonts/NotoSansCJKjp-Medium.otf',
+    'C:\\Windows\\Fonts\\YuGothM.ttc::0',
+  ]);
+
+  pushCandidates(boldCandidates, [
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Bold.otf',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc::0',
+    '/System/Library/Fonts/Supplemental/ヒラギノ角ゴシック W8.ttc::0',
+    '/Library/Fonts/NotoSansCJKjp-Bold.otf',
+    'C:\\Windows\\Fonts\\YuGothB.ttc::0',
+    'C:\\Windows\\Fonts\\meiryob.ttc::0',
+  ]);
+
+  let regular = findExistingFont(regularCandidates);
+  let medium = findExistingFont(mediumCandidates);
+  let bold = findExistingFont(boldCandidates);
+
+  if ((!regular || !bold) && nodePath) {
+    const cacheDirectory = nodePath.join(projectRoot, DEFAULT_FONT_CACHE_DIR);
+    const downloaded = await downloadJapaneseFontSet(cacheDirectory);
+
+    if (downloaded?.regular) {
+      regular = regular ?? downloaded.regular;
+      regularCandidates.unshift(downloaded.regular.path);
+    }
+
+    if (downloaded?.medium) {
+      medium = medium ?? downloaded.medium;
+      mediumCandidates.unshift(downloaded.medium.path);
+    }
+
+    if (downloaded?.bold) {
+      bold = bold ?? downloaded.bold;
+      boldCandidates.unshift(downloaded.bold.path);
+    }
+  }
+
+  const fontEntries: Array<{ src: string; fontWeight: number; fontIndex?: number; postscriptName?: string }> = [];
+
+  if (regular) {
+    fontEntries.push({
+      src: regular.path,
       fontWeight: 400,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCM3FwrKQ1nO0nKUFDd0g3p.ttf',
+      fontIndex: regular.fontIndex,
+      postscriptName: regular.postscriptName,
+    });
+  }
+
+  if (medium) {
+    fontEntries.push({
+      src: medium.path,
       fontWeight: 600,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCM3FwrKQ1nO0nKUFTd0g3p.ttf',
-      fontWeight: 700,
-    },
-  ],
-});
+      fontIndex: medium.fontIndex,
+      postscriptName: medium.postscriptName,
+    });
+  } else if (regular) {
+    fontEntries.push({
+      src: regular.path,
+      fontWeight: 600,
+      fontIndex: regular.fontIndex,
+      postscriptName: regular.postscriptName,
+    });
+  }
 
-Font.register({
-  family: 'NotoSansJP',
-  fonts: [
-    {
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F63fjptAgt5VM-kVkqdyU8n1i8q0g.ttf',
-      fontWeight: 400,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F6pfjptAgt5VM-kVkqdyU8n_qUwwpY.ttf',
-      fontWeight: 500,
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/notosansjp/v52/-F6ofjptAgt5VM-kVkqdyU8n1o0_uYq2.ttf',
+  if (bold) {
+    fontEntries.push({
+      src: bold.path,
       fontWeight: 700,
-    },
-  ],
-});
+      fontIndex: bold.fontIndex,
+      postscriptName: bold.postscriptName,
+    });
+  } else if (medium) {
+    fontEntries.push({
+      src: medium.path,
+      fontWeight: 700,
+      fontIndex: medium.fontIndex,
+      postscriptName: medium.postscriptName,
+    });
+  } else if (regular) {
+    fontEntries.push({
+      src: regular.path,
+      fontWeight: 700,
+      fontIndex: regular.fontIndex,
+      postscriptName: regular.postscriptName,
+    });
+  }
 
+  if (fontEntries.length === 0) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[pdf] No Japanese font files found. Falling back to Helvetica for PDF rendering.');
+    }
+    return;
+  }
+
+  try {
+    Font.register({
+      family: JAPANESE_FONT_FAMILY,
+      fonts: fontEntries.map((entry) => ({
+        src: entry.src,
+        fontWeight: entry.fontWeight,
+        fontStyle: 'normal',
+        ...(entry.fontIndex !== undefined ? { fontIndex: entry.fontIndex } : {}),
+        ...(entry.postscriptName ? { postscriptName: entry.postscriptName } : {}),
+      })) as any,
+    });
+    japaneseFontAvailable = true;
+  } catch (error) {
+    console.warn('[pdf] Failed to register Japanese font family:', error);
+  }
+}
+
+async function preparePdfFonts() {
+  if (fontsRegistered || !isServer) {
+    return;
+  }
+
+  if (!fontsRegistrationPromise) {
+    fontsRegistrationPromise = (async () => {
+      try {
+        await registerJapaneseFonts();
+      } finally {
+        fontsRegistered = true;
+        fontsRegistrationPromise = null;
+      }
+    })();
+  }
+
+  await fontsRegistrationPromise;
+}
+
+function contentContainsJapanese(content: ResumeDraftContent): boolean {
+  const stack: unknown[] = [content];
+
+  while (stack.length > 0) {
+    const value = stack.pop();
+
+    if (typeof value === 'string') {
+      if (japaneseCharacterPattern.test(value)) {
+        return true;
+      }
+    } else if (Array.isArray(value)) {
+      stack.push(...value);
+    } else if (value && typeof value === 'object') {
+      stack.push(...Object.values(value as Record<string, unknown>));
+    }
+  }
+
+  return false;
+}
+
+type FontPreference = {
+  preferJapanese?: boolean;
+  style?: 'sans' | 'serif';
+};
+
+function getFontFamily(content: ResumeDraftContent, options?: FontPreference) {
+  if (
+    japaneseFontAvailable &&
+    (options?.preferJapanese || content.language?.toLowerCase().startsWith('ja') || contentContainsJapanese(content))
+  ) {
+    return JAPANESE_FONT_FAMILY;
+  }
+
+  if (options?.style === 'serif') {
+    return 'Times-Roman';
+  }
+
+  return DEFAULT_FONT_FAMILY;
+}
+
+function getFontConfig(content: ResumeDraftContent, options?: FontPreference) {
+  const family = getFontFamily(content, options);
+  const usesStandardPdfFont = family === DEFAULT_FONT_FAMILY || family === 'Times-Roman';
+
+  return {
+    family,
+    weights: {
+      regular: 400,
+      medium: usesStandardPdfFont ? 700 : 600,
+      bold: 700,
+    },
+  } as const;
+}
+import {
+  firstEducation,
+  formatDateRange,
+  groupExperiencesByCategory,
+} from '@/templates/resume/components/shared';
+
+// Google-hosted font files were previously registered here, but external downloads
+// can fail in restricted or offline environments. Using the built-in Helvetica font
+// ensures PDF generation works reliably without remote dependencies.
 const baseStyles = StyleSheet.create({
   page: {
-    fontFamily: 'Inter',
+    fontFamily: 'Helvetica',
     fontSize: 11,
     color: '#1f2937',
     padding: 36,
@@ -58,70 +511,585 @@ const baseStyles = StyleSheet.create({
     marginTop: 4,
     display: 'flex',
     flexDirection: 'column',
-    gap: 2,
   },
   bulletItem: {
     marginBottom: 2,
   },
 });
 
-function getFontFamily(content: ResumeDraftContent) {
-  if (content.language?.toLowerCase().startsWith('ja')) {
-    return 'NotoSansJP';
-  }
-  return 'Inter';
-}
+const ariaStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    padding: 24,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 48,
+  },
+  header: {
+    marginBottom: 28,
+  },
+  name: {
+    fontSize: 32,
+    fontWeight: 800,
+    letterSpacing: 1.6,
+  },
+  role: {
+    fontSize: 20,
+    fontWeight: 600,
+    color: '#475569',
+    marginTop: 6,
+  },
+  summary: {
+    marginTop: 14,
+    color: '#1f2937',
+    fontSize: 12,
+    lineHeight: 1.6,
+  },
+  contact: {
+    marginTop: 14,
+    fontSize: 10.5,
+    color: '#0f172a',
+    fontWeight: 600,
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#0f172a',
+    marginBottom: 12,
+  },
+  experienceBlock: {
+    marginBottom: 18,
+  },
+  experienceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  experienceTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#475569',
+  },
+  experienceDates: {
+    fontSize: 10.5,
+    fontWeight: 600,
+    color: '#94a3b8',
+  },
+  bulletList: {
+    marginTop: 12,
+    marginLeft: 16,
+  },
+  bulletItem: {
+    fontSize: 11,
+    color: '#1e293b',
+    lineHeight: 1.5,
+    marginBottom: 6,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  chip: {
+    fontSize: 11,
+    fontWeight: 600,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 9999,
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 4,
+    marginBottom: 8,
+  },
+  educationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  educationSchool: {
+    fontSize: 16,
+    fontWeight: 700,
+  },
+  educationDegree: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+    marginTop: 2,
+  },
+  educationDates: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: 600,
+  },
+});
 
-function renderExperience(experience: ResumeDraftContent['workExperiences'][number]) {
-  return (
-    <View key={experience.id} style={{ marginBottom: 14 }}>
-      <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-        <View>
-          <Text style={{ fontSize: 12, fontWeight: 700 }}>{experience.title}</Text>
-          <Text style={{ fontSize: 11, color: '#475569' }}>{experience.company}</Text>
-        </View>
-        <Text style={{ fontSize: 10, color: '#64748b' }}>
-          {[experience.startDate, experience.endDate].filter(Boolean).join(' – ')}
-        </Text>
-      </View>
-      {experience.location ? (
-        <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{experience.location}</Text>
-      ) : null}
-      <View style={baseStyles.bulletList}>
-        {experience.bullets.map((bullet, index) => (
-          <Text key={index} style={baseStyles.bulletItem}>
-            • {bullet}
-          </Text>
-        ))}
-      </View>
-    </View>
-  );
-}
+const sashaStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    padding: 24,
+  },
+  container: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  sidebar: {
+    width: 226,
+    backgroundColor: '#10172a',
+    color: '#f8fafc',
+    paddingVertical: 48,
+    paddingHorizontal: 36,
+    justifyContent: 'flex-start',
+  },
+  sidebarHeading: {
+    fontSize: 30,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: 3,
+  },
+  sidebarRole: {
+    fontSize: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 4.8,
+    marginTop: 12,
+  },
+  sidebarSectionTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: 4.8,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  sidebarList: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  sidebarListItem: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    marginBottom: 6,
+  },
+  sidebarContact: {
+    marginTop: 20,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    lineHeight: 1.6,
+  },
+  main: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    paddingVertical: 56,
+    paddingHorizontal: 60,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeading: {
+    fontSize: 14,
+    letterSpacing: 4.8,
+    textTransform: 'uppercase',
+    color: '#0f172a',
+    fontWeight: 600,
+    marginBottom: 16,
+  },
+  experience: {
+    marginBottom: 20,
+  },
+  experienceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  experienceTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+  },
+  experienceDates: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: 600,
+    marginTop: 6,
+  },
+  bulletList: {
+    marginTop: 10,
+    marginLeft: 14,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  bulletText: {
+    fontSize: 11,
+    lineHeight: 1.6,
+    color: '#1e293b',
+    marginBottom: 6,
+  },
+  skillChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+  },
+  skillChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#0f172a',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginHorizontal: 6,
+    marginBottom: 10,
+  },
+});
 
-function renderEducation(entry: ResumeDraftContent['education'][number]) {
-  return (
-    <View key={entry.id} style={{ marginBottom: 10 }}>
-      <Text style={{ fontSize: 12, fontWeight: 700 }}>{entry.school}</Text>
-      <Text style={{ fontSize: 11, color: '#475569' }}>{entry.degree}</Text>
-      <Text style={{ fontSize: 10, color: '#64748b' }}>
-        {[entry.startDate, entry.endDate].filter(Boolean).join(' – ')}
-      </Text>
-      {entry.location ? <Text style={{ fontSize: 10, color: '#94a3b8' }}>{entry.location}</Text> : null}
-    </View>
-  );
-}
+const samanthaStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    padding: 24,
+  },
+  container: {
+    flex: 1,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  header: {
+    backgroundColor: '#0f172a',
+    color: '#ffffff',
+    paddingVertical: 40,
+    paddingHorizontal: 48,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  headerName: {
+    fontSize: 30,
+    fontWeight: 700,
+  },
+  headerRole: {
+    fontSize: 18,
+    color: '#e2e8f0',
+  },
+  headerContact: {
+    fontSize: 12,
+    textAlign: 'right',
+    lineHeight: 1.6,
+  },
+  summary: {
+    marginTop: 18,
+    fontSize: 12,
+    lineHeight: 1.7,
+    color: '#e2e8f0',
+  },
+  body: {
+    paddingVertical: 40,
+    paddingHorizontal: 48,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeading: {
+    fontSize: 18,
+    color: '#0f172a',
+    fontWeight: 700,
+    marginBottom: 16,
+  },
+  experience: {
+    marginBottom: 24,
+  },
+  experienceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+  },
+  experienceTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+  },
+  experienceDates: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: 600,
+    marginTop: 6,
+  },
+  bulletList: {
+    marginTop: 10,
+    marginLeft: 16,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  bulletText: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 1.6,
+    marginBottom: 6,
+  },
+  educationEntry: {
+    marginBottom: 18,
+  },
+  educationSchool: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#0f172a',
+  },
+  educationDegree: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: 600,
+    marginTop: 2,
+  },
+  educationDates: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  skillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  skillChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#e0f2fe',
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: 600,
+    marginRight: 12,
+    marginBottom: 12,
+  },
+  certificateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+  },
+  certificateName: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#0f172a',
+    marginBottom: 6,
+  },
+  certificateDate: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 6,
+  },
+  list: {
+    marginLeft: 16,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+});
 
-function renderList(items: string[]) {
-  return (
-    <View style={baseStyles.bulletList}>
-      {items.map((item) => (
-        <Text key={item} style={baseStyles.bulletItem}>
-          • {item}
-        </Text>
-      ))}
-    </View>
-  );
-}
+const catherineStyles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    padding: 28,
+  },
+  container: {
+    flex: 1,
+    flexDirection: 'row',
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    overflow: 'hidden',
+  },
+  sidebar: {
+    width: 236,
+    backgroundColor: '#1f2937',
+    color: '#f8fafc',
+    paddingVertical: 48,
+    paddingHorizontal: 40,
+  },
+  sidebarName: {
+    fontSize: 26,
+    fontWeight: 700,
+    color: '#f8fafc',
+  },
+  sidebarRole: {
+    fontSize: 15,
+    color: '#e5e7eb',
+    marginTop: 8,
+  },
+  sidebarContact: {
+    marginTop: 18,
+    fontSize: 12,
+    lineHeight: 1.6,
+  },
+  sidebarHeading: {
+    marginTop: 24,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 4.8,
+  },
+  sidebarList: {
+    marginTop: 10,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  sidebarListItem: {
+    fontSize: 11,
+    lineHeight: 1.5,
+    marginBottom: 8,
+  },
+  main: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    paddingVertical: 56,
+    paddingHorizontal: 64,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeading: {
+    fontSize: 20,
+    color: '#1f2937',
+    fontWeight: 700,
+    marginBottom: 16,
+  },
+  paragraph: {
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 1.7,
+  },
+  experience: {
+    marginBottom: 26,
+  },
+  experienceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+  },
+  experienceTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#1f2937',
+  },
+  experienceCompany: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#4b5563',
+  },
+  experienceLocation: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  experienceDates: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: 600,
+    marginTop: 6,
+  },
+  bulletList: {
+    marginTop: 12,
+    marginLeft: 18,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  bulletText: {
+    fontSize: 11,
+    color: '#4b5563',
+    lineHeight: 1.7,
+    marginBottom: 6,
+  },
+  educationEntry: {
+    marginBottom: 18,
+  },
+  educationDegree: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#1f2937',
+  },
+  educationSchool: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#4b5563',
+    marginTop: 2,
+  },
+  educationDates: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  skillChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  skillChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: '#dbeafe',
+    color: '#1d4ed8',
+    fontSize: 12,
+    fontWeight: 600,
+    marginRight: 12,
+    marginBottom: 12,
+  },
+  certificateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+  },
+  certificateName: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#1f2937',
+    marginBottom: 6,
+  },
+  certificateDate: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 6,
+  },
+});
 
 function getListSection(content: ResumeDraftContent, id: string) {
   return content.listSections.find((section) => section.id === id);
@@ -129,6 +1097,10 @@ function getListSection(content: ResumeDraftContent, id: string) {
 
 function getListItem(content: ResumeDraftContent, id: string, index: number, fallback = '') {
   return getListSection(content, id)?.items[index] ?? fallback;
+}
+
+function getListItems(content: ResumeDraftContent, id: string, fallback: string[] = []) {
+  return getListSection(content, id)?.items ?? fallback;
 }
 
 function parseYearMonth(value?: string): [string, string] {
@@ -460,6 +1432,9 @@ const turnerStyles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 1.4,
   },
+  bulletList: {
+    marginTop: 6,
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -492,458 +1467,37 @@ const turnerStyles = StyleSheet.create({
   },
 });
 
-function ariaPdf(content: ResumeDraftContent) {
-  return (
-    <Document>
-      <Page size="A4" style={{ ...baseStyles.page, fontFamily: getFontFamily(content) }}>
-        <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 22, letterSpacing: 2, fontWeight: 700 }}>{content.profile.fullName.toUpperCase()}</Text>
-          <Text style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginTop: 4 }}>{content.profile.role}</Text>
-          {content.summary ? <Text style={{ marginTop: 10 }}>{content.summary}</Text> : null}
-          <Text style={{ marginTop: 8, fontSize: 10, color: '#64748b' }}>
-            {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.website]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
-        </View>
-
-        <View style={{ marginBottom: 16 }}>
-          <Text style={baseStyles.sectionHeading}>Work Experience</Text>
-          {content.workExperiences.map((experience) => renderExperience(experience))}
-        </View>
-
-        {content.skillGroups.length > 0 && (
-          <View style={{ marginBottom: 16 }}>
-            <Text style={baseStyles.sectionHeading}>Core Skills</Text>
-            {renderList(content.skillGroups[0].skills)}
-          </View>
-        )}
-
-        {content.education.length > 0 && (
-          <View>
-            <Text style={baseStyles.sectionHeading}>Education</Text>
-            {content.education.map((entry) => renderEducation(entry))}
-          </View>
-        )}
-      </Page>
-    </Document>
-  );
-}
-
-function sashaPdf(content: ResumeDraftContent) {
-  return (
-    <Document>
-      <Page
-        size="A4"
-        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
-      >
-        <View style={{ flexDirection: 'row', height: '100%' }}>
-          <View style={{ width: '32%', backgroundColor: '#0f172a', color: '#f8fafc', padding: 28 }}>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>{content.profile.fullName.toUpperCase()}</Text>
-            <Text style={{ fontSize: 12, letterSpacing: 2, marginTop: 6 }}>{content.profile.role.toUpperCase()}</Text>
-            <View style={{ marginTop: 14, fontSize: 10, lineHeight: 1.5 }}>
-              {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.linkedin]
-                .filter(Boolean)
-                .map((value) => (
-                  <Text key={value}>{value}</Text>
-                ))}
-            </View>
-            {content.education.length > 0 && (
-              <View style={{ marginTop: 20 }}>
-                <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>Education</Text>
-                {content.education.map((entry) => (
-                  <View key={entry.id} style={{ marginTop: 10 }}>
-                    <Text style={{ fontSize: 10, fontWeight: 600 }}>{entry.degree}</Text>
-                    <Text style={{ fontSize: 10 }}>{entry.school}</Text>
-                    <Text style={{ fontSize: 9, opacity: 0.7 }}>
-                      {[entry.startDate, entry.endDate].filter(Boolean).join(' – ')}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            {content.listSections
-              .filter((section) => section.placement !== 'main')
-              .map((section) => (
-                <View key={section.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{section.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(section.items)}</View>
-                </View>
-              ))}
-            {content.skillGroups
-              .filter((group) => group.placement !== 'main')
-              .map((group) => (
-                <View key={group.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{group.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(group.skills)}</View>
-                </View>
-              ))}
-          </View>
-
-          <View style={{ flex: 1, padding: 36 }}>
-            {content.objective && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Career Objective</Text>
-                <Text>{content.objective}</Text>
-              </View>
-            )}
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Work Experience</Text>
-              {content.workExperiences.map((experience) => renderExperience(experience))}
-            </View>
-            {content.skillGroups.some((group) => group.placement === 'main') && (
-              <View>
-                <Text style={baseStyles.sectionHeading}>Skills</Text>
-                {renderList(
-                  content.skillGroups
-                    .filter((group) => group.placement === 'main')
-                    .flatMap((group) => group.skills)
-                )}
-              </View>
-            )}
-          </View>
-        </View>
-      </Page>
-    </Document>
-  );
-}
-
-function samanthaPdf(content: ResumeDraftContent) {
-  return (
-    <Document>
-      <Page
-        size="A4"
-        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
-      >
-        <View style={{ backgroundColor: '#0f172a', color: '#fff', padding: 32 }}>
-          <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
-            <View>
-              <Text style={{ fontSize: 20, fontWeight: 700 }}>{content.profile.fullName}</Text>
-              <Text style={{ fontSize: 12, opacity: 0.8 }}>{content.profile.role}</Text>
-            </View>
-            <View style={{ fontSize: 10, textAlign: 'right' }}>
-              {[content.profile.contact.phone, content.profile.contact.email, content.profile.contact.location, content.profile.contact.linkedin]
-                .filter(Boolean)
-                .map((value) => (
-                  <Text key={value}>{value}</Text>
-                ))}
-            </View>
-          </View>
-          {content.summary ? <Text style={{ marginTop: 12, fontSize: 11 }}>{content.summary}</Text> : null}
-        </View>
-
-        <View style={{ padding: 32, display: 'flex', gap: 16 }}>
-          <View style={{ marginBottom: 16 }}>
-            <Text style={baseStyles.sectionHeading}>Work History</Text>
-            {content.workExperiences.map((experience) => renderExperience(experience))}
-          </View>
-          {content.education.length > 0 && (
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Education</Text>
-              {content.education.map((entry) => renderEducation(entry))}
-            </View>
-          )}
-          {content.skillGroups.length > 0 && (
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Skills</Text>
-              {renderList(content.skillGroups.flatMap((group) => group.skills))}
-            </View>
-          )}
-          {content.certifications.length > 0 && (
-            <View>
-              <Text style={baseStyles.sectionHeading}>Certificates</Text>
-              <View style={baseStyles.bulletList}>
-                {content.certifications.map((certificate) => (
-                  <Text key={certificate.id} style={baseStyles.bulletItem}>
-                    • {certificate.name} {certificate.date ? `(${certificate.date})` : ''}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          )}
-        </View>
-      </Page>
-    </Document>
-  );
-}
-
-function japanesePdf(content: ResumeDraftContent) {
-  const furigana = getListItem(content, 'japanese-furigana', 0, 'やまだ たろう');
-  const birth = getListItem(content, 'japanese-personal', 0, '1995年4月12日生（満28歳）');
-  const gender = getListItem(content, 'japanese-personal', 1, '男');
-  const commute = getListItem(content, 'japanese-personal', 2, '通勤時間 45分');
-  const address = getListSection(content, 'japanese-address');
-  const dependents = getListItem(content, 'japanese-household', 0, '扶養家族（配偶者を除く） 1人');
-  const spouse = getListItem(content, 'japanese-household', 1, '配偶者 あり・扶養義務 あり');
-  const emergency = getListSection(content, 'japanese-emergency');
-  const hobbies = getListSection(content, 'japanese-hobbies');
-  const licenses = getListSection(content, 'japanese-licenses');
-  const remarks = getListSection(content, 'japanese-remarks');
-
-  const [defaultYear, defaultMonth, defaultDay] = getDefaultDateParts();
-  const [applicationYear, applicationMonth, applicationDay] = parseYearMonthDay(
-    getListItem(content, 'japanese-application-date', 0, `${defaultYear}-${defaultMonth}-${defaultDay}`)
-  );
-
-  const educationEntries = [...content.education].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
-  const experienceEntries = [...content.workExperiences].sort((a, b) =>
-    (a.startDate ?? '').localeCompare(b.startDate ?? '')
-  );
-
-  const renderHistoryRow = (key: string, year: string, month: string, description: string) => (
-    <View key={key} style={japaneseStyles.historyRow}>
-      <View style={japaneseStyles.historyYear}>
-        <Text style={japaneseStyles.historyLabelText}>{year}</Text>
-      </View>
-      <View style={japaneseStyles.historyMonth}>
-        <Text style={japaneseStyles.historyLabelText}>{month}</Text>
-      </View>
-      <View style={japaneseStyles.historyDescription}>
-        <Text style={japaneseStyles.historyDescriptionText}>{description}</Text>
-      </View>
-    </View>
-  );
-
-  return (
-    <Document>
-      <Page
-        size="A4"
-        style={{
-          ...baseStyles.page,
-          backgroundColor: '#fff',
-          fontFamily: getFontFamily(content),
-        }}
-      >
-        <View style={japaneseStyles.container}>
-          <View style={[japaneseStyles.section, japaneseStyles.header]}>
-            <View style={japaneseStyles.headerLeft}>
-              <Text style={japaneseStyles.title}>履歴書</Text>
-              <View style={japaneseStyles.nameGrid}>
-                <View style={[japaneseStyles.gridRow, { borderTopWidth: 0 }]}>
-                  <View style={japaneseStyles.gridLabel}>
-                    <Text>ふりがな</Text>
-                  </View>
-                  <View style={japaneseStyles.gridValue}>
-                    <Text style={japaneseStyles.furiganaText}>{furigana}</Text>
-                  </View>
-                </View>
-                <View style={japaneseStyles.gridRow}>
-                  <View style={japaneseStyles.gridLabel}>
-                    <Text>氏名</Text>
-                  </View>
-                  <View style={japaneseStyles.gridValue}>
-                    <Text style={japaneseStyles.nameText}>{content.profile.fullName}</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-            <View style={japaneseStyles.headerRight}>
-              <View style={japaneseStyles.applicationDateRow}>
-                <Text style={{ fontSize: 10 }}>(</Text>
-                <View style={[japaneseStyles.dateBox, { width: 56, height: 32, marginLeft: 4 }]}>
-                  <Text style={{ fontSize: 11 }}>{applicationYear}</Text>
-                </View>
-                <Text style={{ fontSize: 10, marginLeft: 4 }}>年</Text>
-                <View style={[japaneseStyles.dateBox, { width: 36, height: 32, marginLeft: 4 }]}>
-                  <Text style={{ fontSize: 11 }}>{applicationMonth}</Text>
-                </View>
-                <Text style={{ fontSize: 10, marginLeft: 4 }}>月</Text>
-                <View style={[japaneseStyles.dateBox, { width: 36, height: 32, marginLeft: 4 }]}>
-                  <Text style={{ fontSize: 11 }}>{applicationDay}</Text>
-                </View>
-                <Text style={{ fontSize: 10, marginLeft: 4 }}>日現在 )</Text>
-              </View>
-              <View style={[japaneseStyles.photoBox, { marginTop: 12 }]}>
-                <Text>写真貼付</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={{ flexDirection: 'row' }}>
-              <View style={[japaneseStyles.gridLabel, { height: 'auto', paddingVertical: 10 }]}>
-                <Text>生年月日</Text>
-              </View>
-              <View style={[japaneseStyles.gridValue, { flexDirection: 'row', flexWrap: 'wrap' }]}>
-                <Text>{birth}</Text>
-                <Text style={{ marginLeft: 12 }}>性別 {gender}</Text>
-                <Text style={{ marginLeft: 12 }}>{commute}</Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: japaneseBorderColor }}>
-              <View style={[japaneseStyles.gridLabel, { height: 'auto', paddingVertical: 10 }]}>
-                <Text>現住所</Text>
-              </View>
-              <View style={[japaneseStyles.gridValue, { paddingVertical: 10 }]}>
-                {address?.items.map((line) => (
-                  <Text key={line}>{line}</Text>
-                ))}
-                {content.profile.contact.phone ? <Text>TEL {content.profile.contact.phone}</Text> : null}
-                {content.profile.contact.email ? <Text>E-mail {content.profile.contact.email}</Text> : null}
-              </View>
-            </View>
-          </View>
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>学歴・職歴</Text>
-            </View>
-            {educationEntries.map((education) => {
-              const [year, month] = parseYearMonth(education.startDate);
-              return renderHistoryRow(education.id, year, month, `${education.school} ${education.degree}`);
-            })}
-            <View style={japaneseStyles.historyRow}>
-              <View style={japaneseStyles.historyYear}>
-                <Text style={japaneseStyles.historyLabelText}> </Text>
-              </View>
-              <View style={japaneseStyles.historyMonth}>
-                <Text style={japaneseStyles.historyLabelText}> </Text>
-              </View>
-              <View style={japaneseStyles.historyDescription}>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: '#6b7280',
-                    textAlign: 'right',
-                    width: '100%',
-                  }}
-                >
-                  以上
-                </Text>
-              </View>
-            </View>
-            {experienceEntries.map((experience) => {
-              const [year, month] = parseYearMonth(experience.startDate);
-              return renderHistoryRow(experience.id, year, month, `${experience.company} ${experience.title}`);
-            })}
-          </View>
-
-          {licenses ? (
-            <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>免許・資格</Text>
-            </View>
-              {licenses.items.map((item, index) => {
-                const [date, description] = item.split('|');
-                const [year, month] = parseYearMonth(date);
-                const descriptionText = (description ?? item).trim();
-                return renderHistoryRow(`${licenses.id}-${index}`, year, month, descriptionText);
-              })}
-            </View>
-          ) : null}
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>本人希望欄</Text>
-            </View>
-            <View style={japaneseStyles.multiLine}>
-              <Text style={japaneseStyles.multiLineText}>{(remarks?.items ?? ['特記事項なし']).join('\n')}</Text>
-            </View>
-          </View>
-        </View>
-      </Page>
-
-      <Page size="A4" style={{ ...baseStyles.page, backgroundColor: '#fff' }}>
-        <View style={japaneseStyles.container}>
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>志望動機</Text>
-            </View>
-            <View style={japaneseStyles.multiLine}>
-              <Text style={japaneseStyles.multiLineText}>
-                {content.objective ?? '御社での業務に貢献できるよう尽力いたします。'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>自己PR</Text>
-            </View>
-            <View style={japaneseStyles.multiLine}>
-              <Text style={japaneseStyles.multiLineText}>
-                {content.summary ?? '成果にこだわり行動する姿勢を強みにしています。'}
-              </Text>
-            </View>
-          </View>
-
-          {hobbies ? (
-            <View style={[japaneseStyles.section, japaneseStyles.table]}>
-              <View style={japaneseStyles.tableHeading}>
-                <Text style={japaneseStyles.tableHeadingText}>趣味・特技</Text>
-              </View>
-              <View style={[japaneseStyles.multiLine, { rowGap: 4 }]}>
-                {hobbies.items.map((item) => (
-                  <Text key={item} style={{ fontSize: 11 }}>
-                    ・{item}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          ) : null}
-
-          <View style={[japaneseStyles.section, japaneseStyles.table]}>
-            <View style={japaneseStyles.tableHeading}>
-              <Text style={japaneseStyles.tableHeadingText}>通勤・家族状況</Text>
-            </View>
-            <View style={japaneseStyles.dualCellRow}>
-              <View style={[japaneseStyles.dualCell, { borderRightWidth: 1, borderRightColor: japaneseBorderColor }]}>
-                <Text style={japaneseStyles.dualCellText}>{dependents}</Text>
-              </View>
-              <View style={japaneseStyles.dualCell}>
-                <Text style={japaneseStyles.dualCellText}>{spouse}</Text>
-              </View>
-            </View>
-          </View>
-
-          {emergency ? (
-            <View style={[japaneseStyles.section, japaneseStyles.table]}>
-              <View style={japaneseStyles.tableHeading}>
-                <Text style={japaneseStyles.tableHeadingText}>緊急連絡先</Text>
-              </View>
-              <View style={japaneseStyles.multiLine}>
-                {emergency.items.map((item, index) => (
-                  <Text key={`${emergency.id}-${index}`} style={japaneseStyles.multiLineText}>
-                    {item}
-                  </Text>
-                ))}
-              </View>
-            </View>
-          ) : null}
-        </View>
-      </Page>
-    </Document>
-  );
-}
-
 function turnerPdf(content: ResumeDraftContent) {
-  const coursesLeft = getListSection(content, 'turner-courses-left')?.items ?? [
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
+
+  const coursesLeft = getListItems(content, 'turner-courses-left', [
     'Immersive Cost Analytics (LSE)',
     'Financial Statement Analysis (UCSF)',
     'Advanced Excel for Financial Modeling',
     'Derivatives (Options Trading Institute)',
-  ];
-  const coursesRight = getListSection(content, 'turner-courses-right')?.items ?? [
+  ]);
+  const coursesRight = getListItems(content, 'turner-courses-right', [
     'Advanced Public Sector Financial Reporting and Analysis',
     'Corporate Finance',
     'Financial Risk Management (GARP)',
     'Portfolio Simulation Workshop',
-  ];
-  const achievementsLeft = getListSection(content, 'turner-achievements-left')?.items ?? [
+  ]);
+  const achievementsLeft = getListItems(content, 'turner-achievements-left', [
     'Civic Service Awardee (2018) — Santa Monica Community',
     'Leadership Fellowship (2019) — Berkeley Haas Center',
-  ];
-  const achievementsRight = getListSection(content, 'turner-achievements-right')?.items ?? [
+  ]);
+  const achievementsRight = getListItems(content, 'turner-achievements-right', [
     'Peer Inc. Group of Companies Special Recognition (2017)',
     'Young Entrepreneur Summit Winner (2016)',
-  ];
-  const interests = getListSection(content, 'turner-interests')?.items ?? [
+  ]);
+  const interests = getListItems(content, 'turner-interests', [
     'Machine Learning',
     'Calligraphy',
     'Astronomy',
     'Photography',
-  ];
-  const references = getListSection(content, 'turner-references')?.items ?? [];
+  ]);
+  const references = getListItems(content, 'turner-references');
 
   const volunteerExperiences = content.workExperiences.filter(
     (experience) => experience.category === 'Volunteer Experience'
@@ -952,26 +1506,51 @@ function turnerPdf(content: ResumeDraftContent) {
     (experience) => experience.category !== 'Volunteer Experience'
   );
 
-  const languageGroup = content.skillGroups.find((group) => group.id === 'turner-languages');
-  const certificationGroup = content.skillGroups.find((group) => group.id === 'turner-certifications');
+  const languagesGroup = content.skillGroups.find((group) => group.id === 'turner-languages');
+  const certificationsGroup = content.skillGroups.find((group) => group.id === 'turner-certifications');
 
-  const renderExperience = (experience: ResumeDraftContent['workExperiences'][number]) => (
-    <View key={experience.id} style={turnerStyles.experience}>
-      <View style={turnerStyles.experienceHeader}>
-        <Text style={turnerStyles.experienceTitle}>{experience.title}</Text>
-        <Text style={turnerStyles.experienceDates}>
-          {[experience.startDate, experience.endDate].filter(Boolean).join(' – ')}
-        </Text>
+  const contactValues = [
+    content.profile.contact.phone,
+    content.profile.contact.email,
+    content.profile.contact.location,
+    content.profile.contact.website,
+  ].filter(Boolean);
+
+  const renderExperienceList = (
+    experiences: ResumeDraftContent['workExperiences'],
+    keyPrefix: string
+  ) =>
+    experiences.map((experience, index) => (
+      <View key={`${keyPrefix}-${experience.id}-${index}`} style={turnerStyles.experience}>
+        <View style={turnerStyles.experienceHeader}>
+          <View>
+            <Text style={turnerStyles.experienceTitle}>{experience.title}</Text>
+            {experience.company ? (
+              <Text style={[turnerStyles.experienceCompany, { fontWeight: mediumWeight }]}> 
+                {experience.company}
+              </Text>
+            ) : null}
+            {experience.location ? (
+              <Text style={turnerStyles.experienceLocation}>{experience.location}</Text>
+            ) : null}
+          </View>
+          {formatDateRange(experience.startDate, experience.endDate) ? (
+            <Text style={[turnerStyles.experienceDates, { fontWeight: mediumWeight }]}> 
+              {formatDateRange(experience.startDate, experience.endDate)}
+            </Text>
+          ) : null}
+        </View>
+        {experience.bullets.length > 0 ? (
+          <View style={turnerStyles.bulletList}>
+            {experience.bullets.map((bullet, bulletIndex) => (
+              <Text key={`${experience.id}-bullet-${bulletIndex}`} style={turnerStyles.bullet}>
+                • {bullet}
+              </Text>
+            ))}
+          </View>
+        ) : null}
       </View>
-      <Text style={turnerStyles.experienceCompany}>{experience.company}</Text>
-      {experience.location ? <Text style={turnerStyles.experienceLocation}>{experience.location}</Text> : null}
-      {experience.bullets.map((bullet, index) => (
-        <Text key={`${experience.id}-bullet-${index}`} style={turnerStyles.bullet}>
-          • {bullet}
-        </Text>
-      ))}
-    </View>
-  );
+    ));
 
   return (
     <Document>
@@ -979,9 +1558,9 @@ function turnerPdf(content: ResumeDraftContent) {
         size="A4"
         style={{
           ...baseStyles.page,
-          fontFamily: getFontFamily(content),
           padding: 0,
           backgroundColor: '#e2e8f0',
+          fontFamily: font.family,
         }}
       >
         <View style={turnerStyles.background}>
@@ -989,24 +1568,24 @@ function turnerPdf(content: ResumeDraftContent) {
             <View style={turnerStyles.header}>
               <View>
                 <Text style={turnerStyles.name}>{content.profile.fullName}</Text>
-                <Text style={turnerStyles.role}>{content.profile.role}</Text>
+                {content.profile.role ? (
+                  <Text style={[turnerStyles.role, { fontWeight: mediumWeight }]}>
+                    {content.profile.role}
+                  </Text>
+                ) : null}
                 {content.profile.tagline ? (
                   <Text style={turnerStyles.tagline}>{content.profile.tagline}</Text>
                 ) : null}
               </View>
-              <View style={turnerStyles.contact}>
-                {[content.profile.contact.phone, content.profile.contact.email, content.profile.contact.location, content.profile.contact.website]
-                  .filter(Boolean)
-                  .map((value) => (
-                    <Text key={value}>{value}</Text>
-                  ))}
-              </View>
+              {contactValues.length > 0 ? (
+                <Text style={turnerStyles.contact}>{contactValues.join('\n')}</Text>
+              ) : null}
             </View>
 
             <View style={turnerStyles.divider} />
 
             <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Courses & Training</Text>
+              <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Courses &amp; Training</Text>
               <View style={turnerStyles.twoColumn}>
                 <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
                   {coursesLeft.map((item, index) => (
@@ -1025,32 +1604,40 @@ function turnerPdf(content: ResumeDraftContent) {
               </View>
             </View>
 
-            <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Education</Text>
-              {content.education.map((entry) => (
-                <View key={entry.id} style={turnerStyles.educationItem}>
-                  <Text style={turnerStyles.educationSchool}>{entry.school}</Text>
-                  <Text style={turnerStyles.educationDegree}>{entry.degree}</Text>
-                  <Text style={turnerStyles.educationDates}>
-                    {[entry.startDate, entry.endDate].filter(Boolean).join(' – ')}
-                  </Text>
-                </View>
-              ))}
-            </View>
+            {content.education.length > 0 ? (
+              <View style={turnerStyles.section}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Education</Text>
+                {content.education.map((entry) => (
+                  <View key={entry.id} style={turnerStyles.educationItem}>
+                    <Text style={turnerStyles.educationSchool}>{entry.school}</Text>
+                    {entry.degree ? (
+                      <Text style={[turnerStyles.educationDegree, { fontWeight: mediumWeight }]}>
+                        {entry.degree}
+                      </Text>
+                    ) : null}
+                    {formatDateRange(entry.startDate, entry.endDate) ? (
+                      <Text style={turnerStyles.educationDates}>
+                        {formatDateRange(entry.startDate, entry.endDate)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Achievements & Awards</Text>
+              <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Achievements &amp; Awards</Text>
               <View style={turnerStyles.twoColumn}>
                 <View style={[turnerStyles.column, turnerStyles.columnSpacing]}>
                   {achievementsLeft.map((item, index) => (
-                    <Text key={`achievements-left-${index}`} style={turnerStyles.listItem}>
+                    <Text key={`achievement-left-${index}`} style={turnerStyles.listItem}>
                       {item}
                     </Text>
                   ))}
                 </View>
                 <View style={turnerStyles.column}>
                   {achievementsRight.map((item, index) => (
-                    <Text key={`achievements-right-${index}`} style={turnerStyles.listItem}>
+                    <Text key={`achievement-right-${index}`} style={turnerStyles.listItem}>
                       {item}
                     </Text>
                   ))}
@@ -1060,16 +1647,16 @@ function turnerPdf(content: ResumeDraftContent) {
 
             {volunteerExperiences.length > 0 ? (
               <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Volunteer Experience</Text>
-                {volunteerExperiences.map((experience) => renderExperience(experience))}
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Volunteer Experience</Text>
+                {renderExperienceList(volunteerExperiences, 'volunteer')}
               </View>
             ) : null}
 
             <View style={turnerStyles.section}>
-              <Text style={turnerStyles.sectionHeading}>Interests & Hobbies</Text>
+              <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Interests &amp; Hobbies</Text>
               <View style={turnerStyles.chipRow}>
-                {interests.map((interest, index) => (
-                  <Text key={`interest-${index}`} style={turnerStyles.chip}>
+                {interests.map((interest) => (
+                  <Text key={interest} style={[turnerStyles.chip, { fontWeight: mediumWeight }]}>
                     {interest}
                   </Text>
                 ))}
@@ -1083,15 +1670,15 @@ function turnerPdf(content: ResumeDraftContent) {
         size="A4"
         style={{
           ...baseStyles.page,
-          fontFamily: getFontFamily(content),
           padding: 0,
           backgroundColor: '#e2e8f0',
+          fontFamily: font.family,
         }}
       >
         <View style={turnerStyles.background}>
           <View style={turnerStyles.sheet}>
             <View style={turnerStyles.header}>
-              <Text style={turnerStyles.name}>{content.profile.fullName}</Text>
+              <Text style={[turnerStyles.name, { fontSize: 20 }]}>{content.profile.fullName}</Text>
               <Text style={turnerStyles.pageFooter}>Page 2 of 2</Text>
             </View>
 
@@ -1099,41 +1686,38 @@ function turnerPdf(content: ResumeDraftContent) {
 
             {content.summary ? (
               <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Professional Summary</Text>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Professional Summary</Text>
                 <Text style={turnerStyles.paragraph}>{content.summary}</Text>
-              </View>
-            ) : null}
-
-            {content.objective ? (
-              <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Career Objective</Text>
-                <Text style={turnerStyles.paragraph}>{content.objective}</Text>
               </View>
             ) : null}
 
             {professionalExperiences.length > 0 ? (
               <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Professional Experience</Text>
-                {professionalExperiences.map((experience) => renderExperience(experience))}
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Professional Experience</Text>
+                {renderExperienceList(professionalExperiences, 'professional')}
               </View>
             ) : null}
 
-            {languageGroup ? (
+            {languagesGroup ? (
               <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>{languageGroup.title}</Text>
-                {languageGroup.skills.map((skill, index) => (
-                  <Text key={`language-${index}`} style={turnerStyles.simpleList}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>
+                  {languagesGroup.title}
+                </Text>
+                {languagesGroup.skills.map((skill) => (
+                  <Text key={skill} style={turnerStyles.simpleList}>
                     {skill}
                   </Text>
                 ))}
               </View>
             ) : null}
 
-            {certificationGroup ? (
+            {certificationsGroup ? (
               <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>{certificationGroup.title}</Text>
-                {certificationGroup.skills.map((skill, index) => (
-                  <Text key={`certification-${index}`} style={turnerStyles.simpleList}>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>
+                  {certificationsGroup.title}
+                </Text>
+                {certificationsGroup.skills.map((skill) => (
+                  <Text key={skill} style={turnerStyles.simpleList}>
                     {skill}
                   </Text>
                 ))}
@@ -1142,10 +1726,10 @@ function turnerPdf(content: ResumeDraftContent) {
 
             {content.certifications.length > 0 ? (
               <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>Credentials</Text>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>Credentials</Text>
                 {content.certifications.map((certificate) => (
                   <Text key={certificate.id} style={turnerStyles.simpleList}>
-                    {certificate.name}
+                    <Text style={{ fontWeight: mediumWeight }}>{certificate.name}</Text>
                     {certificate.date ? ` — ${certificate.date}` : ''}
                     {certificate.organization ? ` · ${certificate.organization}` : ''}
                   </Text>
@@ -1155,7 +1739,7 @@ function turnerPdf(content: ResumeDraftContent) {
 
             {references.length > 0 ? (
               <View style={turnerStyles.section}>
-                <Text style={turnerStyles.sectionHeading}>References</Text>
+                <Text style={[turnerStyles.sectionHeading, { fontWeight: mediumWeight }]}>References</Text>
                 {references.map((reference, index) => (
                   <Text key={`reference-${index}`} style={turnerStyles.simpleList}>
                     {reference}
@@ -1170,87 +1754,932 @@ function turnerPdf(content: ResumeDraftContent) {
   );
 }
 
-function catherinePdf(content: ResumeDraftContent) {
+function japanesePdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content, { preferJapanese: true });
+  const mediumWeight = font.weights.medium;
+
+  const [defaultYear, defaultMonth, defaultDay] = getDefaultDateParts();
+  const [applicationYear, applicationMonth, applicationDay] = parseYearMonthDay(
+    getListItem(content, 'japanese-application-date', 0, `${defaultYear}-${defaultMonth}-${defaultDay}`)
+  );
+  const normalizedYear = applicationYear || defaultYear;
+  const normalizedMonth = applicationMonth || defaultMonth;
+  const normalizedDay = applicationDay || defaultDay;
+  const applicationDateLabel = `${normalizedYear}年${normalizedMonth}月${normalizedDay}日現在`;
+
+  const furigana = getListItem(content, 'japanese-furigana', 0, 'やまだ たろう');
+  const birth = getListItem(content, 'japanese-personal', 0, '1995年4月12日生（満28歳）');
+  const gender = getListItem(content, 'japanese-personal', 1, '男');
+  const commute = getListItem(content, 'japanese-personal', 2, '通勤時間 45分');
+  const addressLine = getListItem(
+    content,
+    'japanese-address',
+    0,
+    '〒150-0002 東京都渋谷区渋谷1-2-3 サンプルマンション301号'
+  );
+  const nearestStation = getListItem(content, 'japanese-address', 1, '最寄駅 代々木上原駅');
+  const dependents = getListItem(content, 'japanese-household', 0, '扶養家族（配偶者を除く） 1人');
+  const spouse = getListItem(content, 'japanese-household', 1, '配偶者 あり・扶養義務 あり');
+  const emergency = getListSection(content, 'japanese-emergency');
+
+  const objective =
+    content.objective ??
+    getListItem(
+      content,
+      'japanese-goal',
+      0,
+      '御社の製品開発に携わり、国内市場のシェア拡大に貢献したいと考えております。'
+    );
+  const selfPr =
+    content.summary ??
+    getListItem(
+      content,
+      'japanese-selfpr',
+      0,
+      '前職では営業として年間120%の達成率を継続し、チームリーダーとして育成にも携わりました。'
+    );
+
+  const hobbies = getListItems(content, 'japanese-hobbies');
+  const licenses = getListItems(content, 'japanese-licenses');
+  const remarks = getListItems(content, 'japanese-remarks');
+
+  const educationEntries = [...content.education].sort((a, b) =>
+    (a.startDate ?? '').localeCompare(b.startDate ?? '')
+  );
+  const experienceEntries = [...content.workExperiences].sort((a, b) =>
+    (a.startDate ?? '').localeCompare(b.startDate ?? '')
+  );
+
+  const historyRows: { year: string; month: string; description: string }[] = [];
+  const pushHistory = (year: string, month: string, description: string) => {
+    if (!year && !month && !description) {
+      return;
+    }
+    historyRows.push({ year, month, description });
+  };
+
+  educationEntries.forEach((entry) => {
+    const [startYear, startMonth] = parseYearMonth(entry.startDate);
+    const [endYear, endMonth] = parseYearMonth(entry.endDate);
+    const baseLabel = entry.school || '学校';
+    if (startYear || startMonth || entry.school) {
+      pushHistory(startYear, startMonth, `${baseLabel} 入学`);
+    }
+    if (endYear || endMonth || entry.degree) {
+      const suffix = entry.degree ? `${entry.degree} 卒業` : '卒業';
+      pushHistory(endYear, endMonth, `${baseLabel} ${suffix}`.trim());
+    }
+  });
+
+  experienceEntries.forEach((entry) => {
+    const [startYear, startMonth] = parseYearMonth(entry.startDate);
+    const [endYear, endMonth] = parseYearMonth(entry.endDate);
+    const companyOrTitle = entry.company || entry.title || '';
+    const roleDescriptor = entry.company && entry.title ? `（${entry.title}）` : '';
+    if (startYear || startMonth || companyOrTitle) {
+      pushHistory(startYear, startMonth, `${companyOrTitle}${roleDescriptor} 入社`.trim());
+    }
+    if (endYear || endMonth) {
+      const status = entry.endDate ? '退職' : '在職中';
+      pushHistory(endYear, endMonth, `${companyOrTitle}${roleDescriptor} ${status}`.trim());
+    }
+  });
+
+  if (historyRows.length === 0) {
+    pushHistory('', '', '—');
+  }
+
+  const emergencyLines = emergency?.items ?? [];
+  const contactValues = [
+    content.profile.contact.phone,
+    content.profile.contact.email,
+  ].filter(Boolean);
+
   return (
     <Document>
       <Page
         size="A4"
-        style={{ ...baseStyles.page, padding: 0, fontFamily: getFontFamily(content) }}
+        style={{
+          ...baseStyles.page,
+          padding: 24,
+          backgroundColor: '#f1f5f9',
+          fontFamily: font.family,
+        }}
       >
-        <View style={{ flexDirection: 'row', height: '100%' }}>
-          <View style={{ width: '35%', backgroundColor: '#1f2937', color: '#f8fafc', padding: 32 }}>
-            <Text style={{ fontSize: 18, fontWeight: 700 }}>{content.profile.fullName}</Text>
-            <Text style={{ fontSize: 11, color: '#e5e7eb', marginTop: 6 }}>{content.profile.role}</Text>
-            <View style={{ fontSize: 10, marginTop: 14 }}>
-              {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.website, content.profile.contact.linkedin]
-                .filter(Boolean)
-                .map((value) => (
-                  <Text key={value}>{value}</Text>
-                ))}
+        <View style={japaneseStyles.container}>
+          <View style={japaneseStyles.applicationDateRow}>
+            <Text style={{ fontSize: 10 }}>{`（ ${applicationDateLabel} ）`}</Text>
+            <View style={{ flexDirection: 'row', marginLeft: 12 }}>
+              <View style={[japaneseStyles.dateBox, { marginRight: 4 }]}>
+                <Text>{normalizedYear}</Text>
+              </View>
+              <View style={[japaneseStyles.dateBox, { marginRight: 4 }]}>
+                <Text>{normalizedMonth}</Text>
+              </View>
+              <View style={japaneseStyles.dateBox}>
+                <Text>{normalizedDay}</Text>
+              </View>
             </View>
-            {content.skillGroups
-              .filter((group) => group.placement === 'sidebar')
-              .map((group) => (
-                <View key={group.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{group.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(group.skills)}</View>
-                </View>
-              ))}
-            {content.listSections
-              .filter((section) => section.placement === 'sidebar')
-              .map((section) => (
-                <View key={section.id} style={{ marginTop: 18 }}>
-                  <Text style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2 }}>{section.title}</Text>
-                  <View style={{ marginTop: 6 }}>{renderList(section.items)}</View>
-                </View>
-              ))}
           </View>
 
-          <View style={{ flex: 1, padding: 36 }}>
-            {content.summary && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Profile</Text>
-                <Text>{content.summary}</Text>
+          <View style={japaneseStyles.header}>
+            <View style={japaneseStyles.headerLeft}>
+              <Text style={japaneseStyles.title}>履歴書</Text>
+              <View style={japaneseStyles.nameGrid}>
+                <View style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text style={japaneseStyles.historyLabelText}>ふりがな</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={[japaneseStyles.furiganaText, { fontWeight: mediumWeight }]}>{furigana}</Text>
+                  </View>
+                </View>
+                <View style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text style={japaneseStyles.historyLabelText}>氏名</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={[japaneseStyles.nameText, { fontWeight: mediumWeight }]}>{content.profile.fullName}</Text>
+                  </View>
+                </View>
               </View>
-            )}
-            <View style={{ marginBottom: 16 }}>
-              <Text style={baseStyles.sectionHeading}>Work Experience</Text>
-              {content.workExperiences.map((experience) => renderExperience(experience))}
             </View>
-            {content.education.length > 0 && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Education</Text>
-                {content.education.map((entry) => renderEducation(entry))}
+            <View style={japaneseStyles.headerRight}>
+              <View style={japaneseStyles.photoBox}>
+                <Text>写真貼付</Text>
               </View>
-            )}
-            {content.skillGroups.some((group) => group.placement !== 'sidebar') && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={baseStyles.sectionHeading}>Skills</Text>
-                {renderList(
-                  content.skillGroups
-                    .filter((group) => group.placement !== 'sidebar')
-                    .flatMap((group) => group.skills)
-                )}
+            </View>
+          </View>
+
+          <View style={{ marginTop: 12 }}>
+            <View style={japaneseStyles.table}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>現住所</Text>
               </View>
-            )}
-            {content.certifications.length > 0 && (
-              <View>
-                <Text style={baseStyles.sectionHeading}>Certifications</Text>
-                <View style={baseStyles.bulletList}>
-                  {content.certifications.map((certificate) => (
-                    <Text key={certificate.id} style={baseStyles.bulletItem}>
-                      • {certificate.name} {certificate.date ? `(${certificate.date})` : ''}
-                    </Text>
-                  ))}
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>住所</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{addressLine}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>最寄駅</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{nearestStation}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[japaneseStyles.table, { marginTop: 12 }]}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>連絡先</Text>
+              </View>
+              {contactValues.map((value, index) => (
+                <View key={`contact-${index}`} style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridLabel}>
+                    <Text style={japaneseStyles.historyLabelText}>{index === 0 ? '電話' : 'Eメール'}</Text>
+                  </View>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.historyDescriptionText}>{value}</Text>
+                  </View>
+                </View>
+              ))}
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>生年月日</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{birth}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>性別</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{gender}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>通勤</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{commute}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[japaneseStyles.table, { marginTop: 12 }]}>
+              <View style={japaneseStyles.tableHeading}>
+                <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>家族</Text>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>扶養家族</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{dependents}</Text>
+                </View>
+              </View>
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridLabel}>
+                  <Text style={japaneseStyles.historyLabelText}>配偶者</Text>
+                </View>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{spouse}</Text>
+                </View>
+              </View>
+            </View>
+
+            {emergencyLines.length > 0 ? (
+              <View style={[japaneseStyles.table, { marginTop: 12 }]}>
+                <View style={japaneseStyles.tableHeading}>
+                  <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>緊急連絡先</Text>
+                </View>
+                {emergencyLines.map((line, index) => (
+                  <View key={`emergency-${index}`} style={japaneseStyles.gridRow}>
+                    <View style={japaneseStyles.gridLabel}>
+                      <Text style={japaneseStyles.historyLabelText}>{index === 0 ? '氏名' : '連絡先'}</Text>
+                    </View>
+                    <View style={japaneseStyles.gridValue}>
+                      <Text style={japaneseStyles.historyDescriptionText}>{line}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+
+          <View style={[japaneseStyles.table, { marginTop: 16 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>学歴・職歴</Text>
+            </View>
+            {historyRows.map((row, index) => (
+              <View key={`history-${index}`} style={japaneseStyles.historyRow}>
+                <View style={japaneseStyles.historyYear}>
+                  <Text style={japaneseStyles.historyLabelText}>{row.year}</Text>
+                </View>
+                <View style={japaneseStyles.historyMonth}>
+                  <Text style={japaneseStyles.historyLabelText}>{row.month}</Text>
+                </View>
+                <View style={japaneseStyles.historyDescription}>
+                  <Text style={japaneseStyles.historyDescriptionText}>{row.description}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </Page>
+
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          padding: 24,
+          backgroundColor: '#f1f5f9',
+          fontFamily: font.family,
+        }}
+      >
+        <View style={japaneseStyles.container}>
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>志望の動機</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>{objective}</Text>
+            </View>
+          </View>
+
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>自己PR</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>{selfPr}</Text>
+            </View>
+          </View>
+
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>免許・資格</Text>
+            </View>
+            {licenses.length > 0 ? (
+              licenses.map((license, index) => (
+                <View key={`license-${index}`} style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.historyDescriptionText}>{license}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>特になし</Text>
                 </View>
               </View>
             )}
+          </View>
+
+          <View style={[japaneseStyles.table, { marginBottom: 12 }]}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>趣味・特技</Text>
+            </View>
+            {hobbies.length > 0 ? (
+              hobbies.map((hobby, index) => (
+                <View key={`hobby-${index}`} style={japaneseStyles.gridRow}>
+                  <View style={japaneseStyles.gridValue}>
+                    <Text style={japaneseStyles.historyDescriptionText}>{hobby}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={japaneseStyles.gridRow}>
+                <View style={japaneseStyles.gridValue}>
+                  <Text style={japaneseStyles.historyDescriptionText}>—</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={japaneseStyles.table}>
+            <View style={japaneseStyles.tableHeading}>
+              <Text style={[japaneseStyles.tableHeadingText, { fontWeight: mediumWeight }]}>本人希望欄</Text>
+            </View>
+            <View style={japaneseStyles.multiLine}>
+              <Text style={japaneseStyles.multiLineText}>
+                {remarks.length > 0 ? remarks.join('\n') : '特記事項なし'}
+              </Text>
+            </View>
           </View>
         </View>
       </Page>
     </Document>
   );
 }
+
+function ariaPdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
+  const grouped = groupExperiencesByCategory(content.workExperiences);
+  const primarySkills =
+    content.skillGroups.find((group) => group.placement !== 'sidebar')?.skills ??
+    content.skillGroups[0]?.skills ??
+    [];
+  const education = firstEducation(content.education);
+  const contactValues = [
+    content.profile.contact.email,
+    content.profile.contact.phone,
+    content.profile.contact.location,
+    content.profile.contact.website,
+  ].filter(Boolean);
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, backgroundColor: '#f1f5f9', fontFamily: font.family }}
+      >
+        <View style={ariaStyles.background}>
+          <View style={ariaStyles.card}>
+            <View style={ariaStyles.header}>
+              <Text style={ariaStyles.name}>{content.profile.fullName.toUpperCase()}</Text>
+              {content.profile.role ? (
+                <Text style={[ariaStyles.role, { fontWeight: mediumWeight }]}>{content.profile.role}</Text>
+              ) : null}
+              {content.summary ? <Text style={ariaStyles.summary}>{content.summary}</Text> : null}
+              {contactValues.length > 0 ? (
+                <Text style={[ariaStyles.contact, { fontWeight: mediumWeight }]}>
+                  {contactValues.join('  •  ')}
+                </Text>
+              ) : null}
+            </View>
+
+            {Object.entries(grouped).map(([category, experiences]) => (
+              <View key={category} style={ariaStyles.section}>
+                <Text style={ariaStyles.sectionTitle}>{category.toUpperCase()}</Text>
+                {experiences.map((experience) => (
+                  <View key={experience.id} style={ariaStyles.experienceBlock}>
+                      <View style={ariaStyles.experienceHeader}>
+                        <View>
+                          <Text style={ariaStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={[ariaStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={[ariaStyles.experienceDates, { fontWeight: mediumWeight }]}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    {experience.location ? (
+                      <Text style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>{experience.location}</Text>
+                    ) : null}
+                    {experience.bullets.length > 0 ? (
+                      <View style={ariaStyles.bulletList}>
+                        {experience.bullets.map((bullet, index) => (
+                          <Text key={`${experience.id}-bullet-${index}`} style={ariaStyles.bulletItem}>
+                            • {bullet}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            ))}
+
+            {primarySkills.length > 0 ? (
+              <View style={ariaStyles.section}>
+                <Text style={ariaStyles.sectionTitle}>Core Skills</Text>
+                <View style={ariaStyles.chipRow}>
+                  {primarySkills.map((skill) => (
+                    <Text key={skill} style={[ariaStyles.chip, { fontWeight: mediumWeight }]}>
+                      {skill}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {education ? (
+              <View style={ariaStyles.section}>
+                <Text style={ariaStyles.sectionTitle}>Education</Text>
+                <View style={ariaStyles.educationRow}>
+                  <View>
+                    <Text style={ariaStyles.educationSchool}>{education.school}</Text>
+                    {education.degree ? (
+                      <Text style={[ariaStyles.educationDegree, { fontWeight: mediumWeight }]}>
+                        {education.degree}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {formatDateRange(education.startDate, education.endDate) ? (
+                    <Text style={[ariaStyles.educationDates, { fontWeight: mediumWeight }]}>
+                      {formatDateRange(education.startDate, education.endDate)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+
+function sashaPdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content, { style: 'serif' });
+  const mediumWeight = font.weights.medium;
+  const sidebarSkills = content.skillGroups.filter((group) => group.placement !== 'main');
+  const mainSkills = content.skillGroups.filter((group) => group.placement === 'main');
+  const sidebarSections = content.listSections.filter((section) => section.placement !== 'main');
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{
+          ...baseStyles.page,
+          padding: 0,
+          fontFamily: font.family,
+          backgroundColor: '#f1f5f9',
+        }}
+      >
+        <View style={sashaStyles.background}>
+          <View style={sashaStyles.container}>
+            <View style={sashaStyles.sidebar}>
+              <Text style={sashaStyles.sidebarHeading}>{content.profile.fullName.toUpperCase()}</Text>
+              {content.profile.role ? (
+                <Text style={sashaStyles.sidebarRole}>{content.profile.role.toUpperCase()}</Text>
+              ) : null}
+
+              <View style={sashaStyles.sidebarContact}>
+                {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.linkedin, content.profile.contact.website]
+                  .filter(Boolean)
+                  .map((value) => (
+                    <Text key={value} style={sashaStyles.sidebarListItem}>
+                      {value}
+                    </Text>
+                  ))}
+              </View>
+
+              {content.education.length > 0 ? (
+                <View style={{ marginTop: 32 }}>
+                  <Text style={[sashaStyles.sidebarSectionTitle, { fontWeight: mediumWeight }]}>Education</Text>
+                  {content.education.map((entry) => (
+                    <View key={entry.id} style={{ marginBottom: 14 }}>
+                      {entry.degree ? (
+                        <Text style={sashaStyles.sidebarListItem}>{entry.degree}</Text>
+                      ) : null}
+                      <Text style={sashaStyles.sidebarListItem}>{entry.school}</Text>
+                      <Text style={[sashaStyles.sidebarListItem, { opacity: 0.8 }]}>
+                        {formatDateRange(entry.startDate, entry.endDate)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {sidebarSections.map((section) => (
+                <View key={section.id} style={{ marginTop: 28 }}>
+                  <Text style={[sashaStyles.sidebarSectionTitle, { fontWeight: mediumWeight }]}>
+                    {section.title.toUpperCase()}
+                  </Text>
+                  <View style={sashaStyles.sidebarList}>
+                    {section.items.map((item) => (
+                      <Text key={item} style={sashaStyles.sidebarListItem}>
+                        {item}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+
+              {sidebarSkills.map((group) => (
+                <View key={group.id} style={{ marginTop: 28 }}>
+                  <Text style={[sashaStyles.sidebarSectionTitle, { fontWeight: mediumWeight }]}>
+                    {group.title.toUpperCase()}
+                  </Text>
+                  <View style={sashaStyles.sidebarList}>
+                    {group.skills.map((skill) => (
+                      <Text key={skill} style={sashaStyles.sidebarListItem}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={sashaStyles.main}>
+              {content.objective ? (
+                <View style={sashaStyles.section}>
+                  <Text style={[sashaStyles.sectionHeading, { fontWeight: mediumWeight }]}>Career Objective</Text>
+                  <Text style={{ fontSize: 12, lineHeight: 1.6, color: '#1e293b' }}>{content.objective}</Text>
+                </View>
+              ) : null}
+
+              {content.workExperiences.length > 0 ? (
+                <View style={sashaStyles.section}>
+                  <Text style={[sashaStyles.sectionHeading, { fontWeight: mediumWeight }]}>Work Experience</Text>
+                  {content.workExperiences.map((experience) => (
+                    <View key={experience.id} style={sashaStyles.experience}>
+                      <View style={sashaStyles.experienceHeader}>
+                        <View>
+                          <Text style={sashaStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={[sashaStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={[sashaStyles.experienceDates, { fontWeight: mediumWeight }]}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {experience.location ? (
+                        <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{experience.location}</Text>
+                      ) : null}
+                      {experience.bullets.length > 0 ? (
+                        <View style={sashaStyles.bulletList}>
+                          {experience.bullets.map((bullet, index) => (
+                            <Text key={`${experience.id}-bullet-${index}`} style={sashaStyles.bulletText}>
+                              • {bullet}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {mainSkills.length > 0 ? (
+                <View style={sashaStyles.section}>
+                  <Text style={[sashaStyles.sectionHeading, { fontWeight: mediumWeight }]}>Skills</Text>
+                  <View style={sashaStyles.skillChipRow}>
+                    {mainSkills.flatMap((group) => group.skills).map((skill) => (
+                      <Text key={skill} style={[sashaStyles.skillChip, { fontWeight: mediumWeight }]}>
+                        {skill.toUpperCase()}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+
+
+function samanthaPdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
+  const skills = content.skillGroups.flatMap((group) => group.skills);
+  const certificates = content.certifications;
+  const listSections = content.listSections.filter((section) => section.placement !== 'sidebar');
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, fontFamily: font.family }}
+      >
+        <View style={samanthaStyles.background}>
+          <View style={samanthaStyles.container}>
+            <View style={samanthaStyles.header}>
+              <View style={samanthaStyles.headerRow}>
+                <View>
+                  <Text style={samanthaStyles.headerName}>{content.profile.fullName}</Text>
+                  {content.profile.role ? (
+                    <Text style={samanthaStyles.headerRole}>{content.profile.role}</Text>
+                  ) : null}
+                </View>
+                <View style={samanthaStyles.headerContact}>
+                  {[content.profile.contact.phone, content.profile.contact.email, content.profile.contact.location, content.profile.contact.linkedin]
+                    .filter(Boolean)
+                    .map((value) => (
+                      <Text key={value}>{value}</Text>
+                    ))}
+                </View>
+              </View>
+              {content.summary ? <Text style={samanthaStyles.summary}>{content.summary}</Text> : null}
+            </View>
+
+            <View style={samanthaStyles.body}>
+              {content.workExperiences.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Work History</Text>
+                  {content.workExperiences.map((experience) => (
+                    <View key={experience.id} style={samanthaStyles.experience}>
+                      <View style={samanthaStyles.experienceRow}>
+                        <View>
+                          <Text style={samanthaStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={[samanthaStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={[samanthaStyles.experienceDates, { fontWeight: mediumWeight }]}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {experience.bullets.length > 0 ? (
+                        <View style={samanthaStyles.bulletList}>
+                          {experience.bullets.map((bullet, index) => (
+                            <Text key={`${experience.id}-bullet-${index}`} style={samanthaStyles.bulletText}>
+                              • {bullet}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {content.education.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Education</Text>
+                  {content.education.map((entry) => (
+                    <View key={entry.id} style={samanthaStyles.educationEntry}>
+                      <Text style={samanthaStyles.educationSchool}>{entry.school}</Text>
+                      {entry.degree ? (
+                        <Text style={[samanthaStyles.educationDegree, { fontWeight: mediumWeight }]}>
+                          {entry.degree}
+                        </Text>
+                      ) : null}
+                      <Text style={samanthaStyles.educationDates}>{formatDateRange(entry.startDate, entry.endDate)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {skills.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Skills</Text>
+                  <View style={samanthaStyles.skillRow}>
+                    {skills.map((skill) => (
+                      <Text key={skill} style={[samanthaStyles.skillChip, { fontWeight: mediumWeight }]}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {certificates.length > 0 ? (
+                <View style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>Certificates</Text>
+                  {certificates.map((certificate) => (
+                    <View key={certificate.id} style={samanthaStyles.certificateRow}>
+                      <Text style={[samanthaStyles.certificateName, { fontWeight: mediumWeight }]}>
+                        {certificate.name}
+                      </Text>
+                      {certificate.date ? (
+                        <Text style={samanthaStyles.certificateDate}>{certificate.date}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {listSections.map((section) => (
+                <View key={section.id} style={samanthaStyles.section}>
+                  <Text style={samanthaStyles.sectionHeading}>{section.title}</Text>
+                  <View style={samanthaStyles.list}>
+                    {section.items.map((item) => (
+                      <Text key={item} style={samanthaStyles.bulletText}>
+                        • {item}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+
+
+function catherinePdf(content: ResumeDraftContent) {
+  const font = getFontConfig(content);
+  const mediumWeight = font.weights.medium;
+  const sidebarGroups = content.skillGroups.filter((group) => group.placement === 'sidebar');
+  const mainSkills = content.skillGroups.filter((group) => group.placement !== 'sidebar');
+  const sidebarSections = content.listSections.filter((section) => section.placement === 'sidebar');
+
+  return (
+    <Document>
+      <Page
+        size="A4"
+        style={{ ...baseStyles.page, padding: 0, fontFamily: font.family }}
+      >
+        <View style={catherineStyles.background}>
+          <View style={catherineStyles.container}>
+            <View style={catherineStyles.sidebar}>
+              <Text style={catherineStyles.sidebarName}>{content.profile.fullName}</Text>
+              {content.profile.role ? (
+                <Text style={catherineStyles.sidebarRole}>{content.profile.role}</Text>
+              ) : null}
+              <View style={catherineStyles.sidebarContact}>
+                {[content.profile.contact.email, content.profile.contact.phone, content.profile.contact.location, content.profile.contact.website, content.profile.contact.linkedin]
+                  .filter(Boolean)
+                  .map((value) => (
+                    <Text key={value} style={catherineStyles.sidebarListItem}>
+                      {value}
+                    </Text>
+                  ))}
+              </View>
+
+              {sidebarGroups.map((group) => (
+                <View key={group.id}>
+                  <Text style={catherineStyles.sidebarHeading}>{group.title}</Text>
+                  <View style={catherineStyles.sidebarList}>
+                    {group.skills.map((skill) => (
+                      <Text key={skill} style={catherineStyles.sidebarListItem}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+
+              {sidebarSections.map((section) => (
+                <View key={section.id}>
+                  <Text style={catherineStyles.sidebarHeading}>{section.title}</Text>
+                  <View style={catherineStyles.sidebarList}>
+                    {section.items.map((item) => (
+                      <Text key={item} style={catherineStyles.sidebarListItem}>
+                        {item}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={catherineStyles.main}>
+              {content.summary ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Profile</Text>
+                  <Text style={catherineStyles.paragraph}>{content.summary}</Text>
+                </View>
+              ) : null}
+
+              {content.workExperiences.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Work Experience</Text>
+                  {content.workExperiences.map((experience) => (
+                    <View key={experience.id} style={catherineStyles.experience}>
+                      <View style={catherineStyles.experienceHeader}>
+                        <View>
+                          <Text style={catherineStyles.experienceTitle}>{experience.title}</Text>
+                          {experience.company ? (
+                            <Text style={[catherineStyles.experienceCompany, { fontWeight: mediumWeight }]}>
+                              {experience.company}
+                            </Text>
+                          ) : null}
+                          {experience.location ? (
+                            <Text style={catherineStyles.experienceLocation}>{experience.location}</Text>
+                          ) : null}
+                        </View>
+                        {formatDateRange(experience.startDate, experience.endDate) ? (
+                          <Text style={[catherineStyles.experienceDates, { fontWeight: mediumWeight }]}>
+                            {formatDateRange(experience.startDate, experience.endDate)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {experience.bullets.length > 0 ? (
+                        <View style={catherineStyles.bulletList}>
+                          {experience.bullets.map((bullet, index) => (
+                            <Text key={`${experience.id}-bullet-${index}`} style={catherineStyles.bulletText}>
+                              • {bullet}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {content.education.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Education</Text>
+                  {content.education.map((entry) => (
+                    <View key={entry.id} style={catherineStyles.educationEntry}>
+                      {entry.degree ? (
+                        <Text style={catherineStyles.educationDegree}>{entry.degree}</Text>
+                      ) : null}
+                      <Text style={[catherineStyles.educationSchool, { fontWeight: mediumWeight }]}>
+                        {entry.school}
+                      </Text>
+                      <Text style={catherineStyles.educationDates}>{formatDateRange(entry.startDate, entry.endDate)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {mainSkills.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Skills</Text>
+                  <View style={catherineStyles.skillChipRow}>
+                    {mainSkills.flatMap((group) => group.skills).map((skill) => (
+                      <Text key={skill} style={[catherineStyles.skillChip, { fontWeight: mediumWeight }]}>
+                        {skill}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {content.certifications.length > 0 ? (
+                <View style={catherineStyles.section}>
+                  <Text style={catherineStyles.sectionHeading}>Certifications</Text>
+                  {content.certifications.map((certification) => (
+                    <View key={certification.id} style={catherineStyles.certificateRow}>
+                      <Text style={[catherineStyles.certificateName, { fontWeight: mediumWeight }]}>
+                        {certification.name}
+                      </Text>
+                      {certification.date ? (
+                        <Text style={catherineStyles.certificateDate}>{certification.date}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
 
 const pdfRenderers: Record<string, (content: ResumeDraftContent) => JSX.Element> = {
   'aria-stark': ariaPdf,
@@ -1261,7 +2690,8 @@ const pdfRenderers: Record<string, (content: ResumeDraftContent) => JSX.Element>
   'japanese-rirekisho': japanesePdf,
 };
 
-export function renderResumePdf(templateId: string, content: ResumeDraftContent) {
+export async function renderResumePdf(templateId: string, content: ResumeDraftContent) {
+  await preparePdfFonts();
   const renderer = pdfRenderers[templateId] ?? ariaPdf;
   return renderer(content);
 }

@@ -24,8 +24,6 @@ import { useLocalization, formatMessage } from '@/context/LocalizationContext';
 type AdminTab = 'overview' | 'users' | 'downloads' | 'subscriptions' | 'templates';
 
 const FREE_DOWNLOAD_ALLOWANCE = 1;
-const PRO_WEEKLY_ALLOWANCE = 10;
-const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface UserRow {
   id: string;
@@ -33,7 +31,6 @@ interface UserRow {
   role: string;
   createdAt?: Date;
   remainingDownloads?: number;
-  tokens?: number;
   nextRefreshAt?: Date | null;
   plan?: 'free' | 'pro';
   stripeCustomerId?: string;
@@ -82,7 +79,6 @@ export function AdminDashboard() {
   const [syncingUserId, setSyncingUserId] = useState<string | null>(null);
   const [adjustingUserId, setAdjustingUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
-  const [grantingTokensId, setGrantingTokensId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [loadingDownloads, setLoadingDownloads] = useState(true);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
@@ -95,8 +91,6 @@ export function AdminDashboard() {
         const data = document.data();
         const subscriptionStatus = data.subscription?.status as string | undefined;
         const periodEnd = (data.subscription?.currentPeriodEnd as Timestamp | undefined)?.toDate?.() ?? null;
-        const tokens =
-          typeof data.entitlements?.tokens === 'number' ? data.entitlements.tokens : 0;
         const rawNextRefresh = data.entitlements?.nextRefreshAt;
         let nextRefreshAt: Date | null = null;
         if (rawNextRefresh) {
@@ -112,7 +106,6 @@ export function AdminDashboard() {
           role: (data.role as string) ?? 'user',
           createdAt: (data.createdAt as Timestamp)?.toDate?.(),
           remainingDownloads: data.entitlements?.remainingDownloads,
-          tokens,
           nextRefreshAt,
           plan: data.entitlements?.plan,
           stripeCustomerId: data.stripeCustomerId as string | undefined,
@@ -296,18 +289,20 @@ export function AdminDashboard() {
   const resetDownloads = async (user: UserRow) => {
     try {
       setResettingUserId(user.id);
-      const allowance = user.plan === 'pro' ? PRO_WEEKLY_ALLOWANCE : FREE_DOWNLOAD_ALLOWANCE;
-      const updates: Record<string, unknown> = {
-        'entitlements.remainingDownloads': allowance,
-        'entitlements.nextRefreshAt':
-          user.plan === 'pro'
-            ? Timestamp.fromDate(new Date(Date.now() + WEEK_IN_MS))
-            : null,
-      };
+      const updates: Record<string, unknown> = {};
+      let allowanceLabel: string | number = FREE_DOWNLOAD_ALLOWANCE;
+      if (user.plan === 'pro') {
+        updates['entitlements.remainingDownloads'] = null;
+        updates['entitlements.nextRefreshAt'] = null;
+        allowanceLabel = adminCopy.usersColumns.unlimitedDownloads;
+      } else {
+        updates['entitlements.remainingDownloads'] = FREE_DOWNLOAD_ALLOWANCE;
+        updates['entitlements.nextRefreshAt'] = null;
+      }
       await updateDoc(doc(db, 'users', user.id), {
         ...updates,
       });
-      setStatus(formatMessage(adminCopy.statuses.resetSuccess, { allowance }));
+      setStatus(formatMessage(adminCopy.statuses.resetSuccess, { allowance: allowanceLabel }));
     } catch (error) {
       console.error(error);
       setStatus(adminCopy.statuses.resetFailed);
@@ -322,8 +317,8 @@ export function AdminDashboard() {
         'entitlements.plan': plan,
       };
       if (plan === 'pro') {
-        updates['entitlements.remainingDownloads'] = PRO_WEEKLY_ALLOWANCE;
-        updates['entitlements.nextRefreshAt'] = Timestamp.fromDate(new Date(Date.now() + WEEK_IN_MS));
+        updates['entitlements.remainingDownloads'] = null;
+        updates['entitlements.nextRefreshAt'] = null;
       } else {
         updates['entitlements.remainingDownloads'] = FREE_DOWNLOAD_ALLOWANCE;
         updates['entitlements.nextRefreshAt'] = null;
@@ -333,21 +328,6 @@ export function AdminDashboard() {
     } catch (error) {
       console.error(error);
       setStatus(adminCopy.statuses.planFailed);
-    }
-  };
-
-  const grantTokens = async (userId: string, amount: number) => {
-    try {
-      setGrantingTokensId(userId);
-      await updateDoc(doc(db, 'users', userId), {
-        'entitlements.tokens': increment(amount),
-      });
-      setStatus(formatMessage(adminCopy.statuses.tokensGranted, { count: amount }));
-    } catch (error) {
-      console.error(error);
-      setStatus(adminCopy.statuses.tokensGrantFailed);
-    } finally {
-      setGrantingTokensId(null);
     }
   };
 
@@ -838,15 +818,17 @@ export function AdminDashboard() {
                       <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.email}</th>
                       <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.plan}</th>
                       <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.remainingDownloads}</th>
-                      <th style={{ padding: '0.75rem 0.5rem' }}>{adminCopy.usersColumns.tokens}</th>
                       <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>{adminCopy.usersColumns.actions}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map((userRow) => {
                       const planLabel = (userRow.plan ?? 'free').toUpperCase();
-                      const downloadsRemaining = userRow.remainingDownloads ?? 0;
-                      const tokens = userRow.tokens ?? 0;
+                      const isUnlimited = userRow.plan === 'pro';
+                      const numericDownloads = userRow.remainingDownloads ?? 0;
+                      const downloadsDisplay = isUnlimited
+                        ? adminCopy.usersColumns.unlimitedDownloads
+                        : numericDownloads;
                       const isSelected = selectedUserId === userRow.id;
                       return (
                         <tr
@@ -893,19 +875,10 @@ export function AdminDashboard() {
                             style={{
                               padding: '0.85rem 0.5rem',
                               fontWeight: 600,
-                              color: downloadsRemaining <= 1 ? '#b91c1c' : '#0f172a',
+                              color: !isUnlimited && numericDownloads <= 1 ? '#b91c1c' : '#0f172a',
                             }}
                           >
-                            {downloadsRemaining}
-                          </td>
-                          <td
-                            style={{
-                              padding: '0.85rem 0.5rem',
-                              fontWeight: 600,
-                              color: tokens > 0 ? '#0f172a' : '#94a3b8',
-                            }}
-                          >
-                            {tokens}
+                            {downloadsDisplay}
                           </td>
                           <td style={{ padding: '0.85rem 0.5rem' }}>
                             <div
@@ -1045,11 +1018,11 @@ export function AdminDashboard() {
                           </div>
                           <div>
                             <div style={detailLabelStyle}>{detailLabels.downloads}</div>
-                            <p style={detailValueStyle}>{selectedUser.remainingDownloads ?? 0}</p>
-                          </div>
-                          <div>
-                            <div style={detailLabelStyle}>{detailLabels.tokens}</div>
-                            <p style={detailValueStyle}>{selectedUser.tokens ?? 0}</p>
+                            <p style={detailValueStyle}>
+                              {selectedUser.plan === 'pro'
+                                ? adminCopy.usersColumns.unlimitedDownloads
+                                : selectedUser.remainingDownloads ?? 0}
+                            </p>
                           </div>
                           <div>
                             <div style={detailLabelStyle}>{detailLabels.nextRefresh}</div>
@@ -1152,40 +1125,30 @@ export function AdminDashboard() {
                         <button
                           type="button"
                           onClick={() => adjustDownloads(selectedUser.id, 10)}
-                          disabled={selectedUser.plan !== 'pro' || adjustingUserId === selectedUser.id}
+                          disabled={selectedUser.plan === 'pro' || adjustingUserId === selectedUser.id}
                           style={{
                             ...actionButtonBase,
                             border: '1px solid #16a34a',
-                            background: adjustingUserId === selectedUser.id ? '#dcfce7' : '#22c55e',
-                            color: adjustingUserId === selectedUser.id ? '#166534' : '#fff',
+                            background:
+                              adjustingUserId === selectedUser.id || selectedUser.plan === 'pro'
+                                ? '#dcfce7'
+                                : '#22c55e',
+                            color:
+                              adjustingUserId === selectedUser.id || selectedUser.plan === 'pro'
+                                ? '#166534'
+                                : '#fff',
                             opacity:
-                              selectedUser.plan !== 'pro'
+                              selectedUser.plan === 'pro'
                                 ? 0.45
                                 : adjustingUserId === selectedUser.id
                                 ? 0.85
                                 : 1,
-                            cursor: selectedUser.plan !== 'pro' ? 'not-allowed' : 'pointer',
+                            cursor: selectedUser.plan === 'pro' ? 'not-allowed' : 'pointer',
                           }}
                         >
                           {adjustingUserId === selectedUser.id
                             ? `${adminCopy.buttons.addDownloads}…`
                             : adminCopy.buttons.addDownloads}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => grantTokens(selectedUser.id, 5)}
-                          disabled={grantingTokensId === selectedUser.id}
-                          style={{
-                            ...actionButtonBase,
-                            border: '1px solid #a855f7',
-                            background: grantingTokensId === selectedUser.id ? '#ede9fe' : '#a855f7',
-                            color: grantingTokensId === selectedUser.id ? '#6b21a8' : '#fff',
-                            opacity: grantingTokensId === selectedUser.id ? 0.85 : 1,
-                          }}
-                        >
-                          {grantingTokensId === selectedUser.id
-                            ? `${adminCopy.buttons.addTokens}…`
-                            : adminCopy.buttons.addTokens}
                         </button>
                       </div>
                     </div>

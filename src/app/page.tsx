@@ -97,6 +97,17 @@ export default function LandingPage() {
                   {hero.secondaryAction}
                 </Link>
               </div>
+              <div
+                className={`${styles.adSlot} ${styles.heroAdSlot}`}
+                aria-label="Hero advertisement placement"
+                role="complementary"
+              >
+                <span className={styles.adLabel}>Ad Space</span>
+                <p className={styles.adDescription}>
+                  Reserve this premium spotlight to promote hiring partners, portfolio services, or limited time offers.
+                </p>
+                <span className={styles.adNote}>Suggested size: 300 × 250</span>
+              </div>
               <dl className={styles.heroMetaList}>
                 {hero.metadata.map((item) => (
                   <div key={item.label}>
@@ -161,6 +172,18 @@ export default function LandingPage() {
                   <span key={tag}>{tag}</span>
                 ))}
               </div>
+            </div>
+
+            <div
+              className={`${styles.adSlot} ${styles.sidebarAdSlot}`}
+              aria-label="Sidebar advertisement placement"
+              role="complementary"
+            >
+              <span className={styles.adLabel}>Ad Space</span>
+              <p className={styles.adDescription}>
+                Feature affiliated job boards, certification partners, or resume review services alongside key resources.
+              </p>
+              <span className={styles.adNote}>Suggested size: 300 × 600</span>
             </div>
           </aside>
         </section>
@@ -238,6 +261,23 @@ export default function LandingPage() {
                 </Link>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section
+          className={`${styles.adSlot} ${styles.adBanner}`}
+          aria-label="Landing page banner advertisement"
+          role="complementary"
+        >
+          <div className={styles.adBannerCopy}>
+            <span className={styles.adLabel}>Ad Space</span>
+            <p className={styles.adDescription}>
+              Allocate this wide banner to highlight trusted sponsors, recruiter programs, or career accelerators.
+            </p>
+            <p className={styles.adNote}>Ideal dimensions: 970 × 250</p>
+          </div>
+          <div className={styles.adBannerPlaceholder} aria-hidden>
+            <span>Preview your creative here</span>
           </div>
         </section>
 

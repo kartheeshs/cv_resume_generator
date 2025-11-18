@@ -176,7 +176,7 @@ type TranslationDefinition = {
       role: string;
       plan: string;
       remainingDownloads: string;
-      tokens: string;
+      unlimitedDownloads: string;
       nextRefresh: string;
       subscriptionStatus: string;
       createdAt: string;
@@ -199,7 +199,6 @@ type TranslationDefinition = {
         createdAt: string;
         plan: string;
         downloads: string;
-        tokens: string;
         nextRefresh: string;
         subscriptionStatus: string;
         subscriptionPeriodEnd: string;
@@ -210,7 +209,6 @@ type TranslationDefinition = {
       setUser: string;
       setAdmin: string;
       addDownloads: string;
-      addTokens: string;
       resetDownloads: string;
       resetDownloadsLoading: string;
       setPlanToFree: string;
@@ -235,8 +233,6 @@ type TranslationDefinition = {
       templatesFailed: string;
       downloadsFailed: string;
       templateDuplicated: string;
-      tokensGranted: string;
-      tokensGrantFailed: string;
       userDeleted: string;
       userDeleteFailed: string;
       userDeleteEmailFailed: string;
@@ -261,13 +257,11 @@ type TranslationDefinition = {
     signedInFallback: string;
     planLabel: string;
     downloadsLeftLabel: string;
-    tokenBalanceLabel: string;
+    unlimitedDownloads: string;
+    unlimitedDownloadsDescription: string;
     nextRefreshLabel: string;
     subscribeCta: string;
-    tokenInfo: string;
-    tokenRedeemCta: string;
-    tokenRedeemLoading: string;
-    tokenEmpty: string;
+    subscribeCtaLoading: string;
     loadingEntitlements: string;
     resumeHeading: string;
     resumeCopy: string;
@@ -288,6 +282,7 @@ type TranslationDefinition = {
     downloadLimitNotice: string;
     downloadLimitExceeded: string;
     downloadResetByAdmin: string;
+    freePlanRefreshInfo: string;
     draftStatusLoading: string;
     draftStatusEmpty: string;
     draftStatusLoaded: string;
@@ -317,17 +312,12 @@ type TranslationDefinition = {
       draftNotFound: string;
       draftLoaded: string;
       draftLoadFailed: string;
-      missingTitle: string;
       draftUpdated: string;
       draftCreated: string;
       draftSaveFailed: string;
       saveBeforePdf: string;
       missingEntitlements: string;
       downloadLimitReached: string;
-      downloadTokensAvailable: string;
-      tokenRedeemed: string;
-      tokenRedeemFailed: string;
-      noTokens: string;
       pdfSuccess: string;
       pdfFailed: string;
       editorReset: string;
@@ -640,7 +630,7 @@ const translations: Record<Locale, TranslationDefinition> = {
         role: 'Role',
         plan: 'Plan',
         remainingDownloads: 'Downloads left',
-        tokens: 'Tokens',
+        unlimitedDownloads: 'Unlimited',
         nextRefresh: 'Next refresh',
         subscriptionStatus: 'Subscription status',
         createdAt: 'Created',
@@ -663,7 +653,6 @@ const translations: Record<Locale, TranslationDefinition> = {
           createdAt: 'Created',
           plan: 'Plan',
           downloads: 'Downloads left',
-          tokens: 'Tokens',
           nextRefresh: 'Next refresh',
           subscriptionStatus: 'Subscription status',
           subscriptionPeriodEnd: 'Period end',
@@ -674,7 +663,6 @@ const translations: Record<Locale, TranslationDefinition> = {
         setUser: 'Set user',
         setAdmin: 'Set admin',
         addDownloads: '+10 downloads',
-        addTokens: '+5 tokens',
         resetDownloads: 'Reset allowance',
         resetDownloadsLoading: 'Resetting…',
         setPlanToFree: 'Set free plan',
@@ -699,8 +687,6 @@ const translations: Record<Locale, TranslationDefinition> = {
         templatesFailed: 'Unable to load templates.',
         downloadsFailed: 'Unable to load downloads from Firestore.',
         templateDuplicated: 'Template duplicated.',
-        tokensGranted: 'Granted {{count}} tokens.',
-        tokensGrantFailed: 'Unable to grant tokens right now.',
         userDeleted: 'User removed and notified via email.',
         userDeleteFailed: 'Failed to delete the user.',
         userDeleteEmailFailed: 'User deleted, but notification email could not be sent.',
@@ -726,13 +712,11 @@ const translations: Record<Locale, TranslationDefinition> = {
       signedInFallback: 'Signed in member',
       planLabel: 'Plan',
       downloadsLeftLabel: 'Downloads left',
-      tokenBalanceLabel: 'Token balance',
+      unlimitedDownloads: 'Unlimited',
+      unlimitedDownloadsDescription: 'Unlimited downloads while your subscription is active.',
       nextRefreshLabel: 'Next refresh',
       subscribeCta: 'Subscribe to Growth',
-      tokenInfo: 'Redeem tokens to add extra downloads before the weekly refresh.',
-      tokenRedeemCta: 'Redeem token (+1 download)',
-      tokenRedeemLoading: 'Redeeming…',
-      tokenEmpty: 'No tokens available right now.',
+      subscribeCtaLoading: 'Connecting…',
       loadingEntitlements: 'Loading entitlements…',
       resumeHeading: 'Resume workspace',
       resumeCopy: 'Craft resumes with production-ready templates, edit every section, and export polished PDFs.',
@@ -754,12 +738,13 @@ const translations: Record<Locale, TranslationDefinition> = {
       downloadsHeading: 'Download status',
       downloadsEmpty: 'No downloads recorded yet.',
       downloadsCopy:
-        'Free plans can export one PDF. Growth refreshes 10 downloads weekly—redeem tokens for extras or ask an admin to reset the limit.',
+        'Free plans can export one PDF. Growth subscribers unlock unlimited downloads with automatic refreshes.',
       settingsHeading: 'Account & limits',
       settingsCopy: 'Adjust workspace language, review entitlements, and collaborate securely.',
-      downloadLimitNotice: 'Downloads remaining: {{count}}',
-      downloadLimitExceeded: 'Free plan download limit reached. Subscribe to continue exporting.',
-      downloadResetByAdmin: 'An admin can reset your download allowance from the control center.',
+      downloadLimitNotice: 'Free plans reset weekly. Upgrade for unlimited downloads.',
+      downloadLimitExceeded: 'Free plan download limit reached. Upgrade to keep exporting instantly.',
+      downloadResetByAdmin: 'Ask an admin to reset your allowance or upgrade for unlimited exports.',
+      freePlanRefreshInfo: 'Allowances reset weekly or whenever an admin refreshes your quota.',
       draftStatusLoading: 'Loading drafts…',
       draftStatusEmpty: 'No draft selected.',
       draftStatusLoaded: 'Editing draft: {{title}}',
@@ -789,19 +774,13 @@ const translations: Record<Locale, TranslationDefinition> = {
         draftNotFound: 'Draft not found.',
         draftLoaded: 'Draft loaded into the editor.',
         draftLoadFailed: 'Unable to load draft.',
-        missingTitle: 'Please provide a document title.',
         draftUpdated: 'Draft updated successfully.',
         draftCreated: 'Draft created successfully.',
         draftSaveFailed: 'Unable to save draft. Please try again.',
         saveBeforePdf: 'Save your draft before generating a PDF.',
         missingEntitlements: 'Missing entitlements data. Please reload the page.',
         downloadLimitReached:
-          'You have reached the weekly download limit. Subscribe, redeem a token, or ask an admin to reset your allowance.',
-        downloadTokensAvailable:
-          'You are out of downloads for this week. Redeem a token to keep exporting before the refresh.',
-        tokenRedeemed: 'Token redeemed. One additional download added.',
-        tokenRedeemFailed: 'Unable to redeem a token right now.',
-        noTokens: 'No tokens available to redeem.',
+          'You have reached the weekly download limit. Upgrade for unlimited exports or ask an admin to reset your allowance.',
         pdfSuccess: 'PDF generated successfully.',
         pdfFailed: 'Failed to generate PDF.',
         editorReset: 'Editor reset to template defaults.',
@@ -1112,7 +1091,7 @@ const translations: Record<Locale, TranslationDefinition> = {
         role: 'ロール',
         plan: 'プラン',
         remainingDownloads: '残りダウンロード',
-        tokens: 'トークン',
+        unlimitedDownloads: '無制限',
         nextRefresh: '次回リフレッシュ',
         subscriptionStatus: 'サブスクリプション状態',
         createdAt: '作成日時',
@@ -1135,7 +1114,6 @@ const translations: Record<Locale, TranslationDefinition> = {
           createdAt: '作成日時',
           plan: 'プラン',
           downloads: '残りダウンロード',
-          tokens: 'トークン',
           nextRefresh: '次回リフレッシュ',
           subscriptionStatus: 'サブスクリプション状態',
           subscriptionPeriodEnd: '期間終了',
@@ -1146,7 +1124,6 @@ const translations: Record<Locale, TranslationDefinition> = {
         setUser: 'ユーザーに変更',
         setAdmin: '管理者に変更',
         addDownloads: '+10ダウンロード',
-        addTokens: '+5トークン',
         resetDownloads: '上限をリセット',
         resetDownloadsLoading: 'リセット中…',
         setPlanToFree: 'フリープランに設定',
@@ -1171,8 +1148,6 @@ const translations: Record<Locale, TranslationDefinition> = {
         templatesFailed: 'テンプレートを読み込めませんでした。',
         downloadsFailed: 'Firestoreからダウンロードを読み込めませんでした。',
         templateDuplicated: 'テンプレートを複製しました。',
-        tokensGranted: '{{count}}件のトークンを付与しました。',
-        tokensGrantFailed: '現在トークンを付与できません。',
         userDeleted: 'ユーザーを削除し、メール通知を送信しました。',
         userDeleteFailed: 'ユーザーを削除できませんでした。',
         userDeleteEmailFailed: 'ユーザーは削除しましたが、通知メールを送信できませんでした。',
@@ -1197,13 +1172,11 @@ const translations: Record<Locale, TranslationDefinition> = {
       signedInFallback: 'サインイン中のメンバー',
       planLabel: 'プラン',
       downloadsLeftLabel: '残りダウンロード',
-      tokenBalanceLabel: 'トークン残高',
+      unlimitedDownloads: '無制限',
+      unlimitedDownloadsDescription: 'サブスクリプションが有効な間はダウンロード無制限です。',
       nextRefreshLabel: '次回リフレッシュ',
       subscribeCta: '有料プランに加入する',
-      tokenInfo: '週次リセットを待たずにダウンロード枠を追加するにはトークンを使用してください。',
-      tokenRedeemCta: 'トークンを使用して1件追加',
-      tokenRedeemLoading: '処理中…',
-      tokenEmpty: '利用可能なトークンはありません。',
+      subscribeCtaLoading: '接続中…',
       loadingEntitlements: '権限を読み込み中…',
       resumeHeading: 'レジュメワークスペース',
       resumeCopy: '実運用レベルのテンプレートで各セクションを編集し、仕上げたPDFをすぐに共有できます。',
@@ -1225,13 +1198,14 @@ const translations: Record<Locale, TranslationDefinition> = {
       downloadsHeading: 'ダウンロード状況',
       downloadsEmpty: 'ダウンロード履歴はまだありません。エディター内の「PDFをダウンロード」ボタンからファイルを生成してください。',
       downloadsCopy:
-        '無料プランはPDFを1回のみ出力できます。Growthプランは毎週10件までリセットされ、追加はトークンで拡張できます。',
+        '無料プランはPDFを1回のみ出力できます。Growthプランなら毎週自動リセットされ、ダウンロード無制限で運用できます。',
       settingsHeading: 'アカウントと上限',
       settingsCopy: 'ワークスペース言語を調整し、権限と共同編集を管理します。',
-      downloadLimitNotice: '残りダウンロード数: {{count}}',
+      downloadLimitNotice: '無料プランは毎週リセットされます。無制限プランへのアップグレードもご検討ください。',
       downloadLimitExceeded:
-        '今週のダウンロード上限に達しました。購読するか、トークンを使うか、管理者にリセットを依頼してください。',
-      downloadResetByAdmin: '管理者がコントロールセンターから上限をリセットできます。',
+        '今週のダウンロード上限に達しました。アップグレードするか、管理者にリセットを依頼してください。',
+      downloadResetByAdmin: '管理者にリセットを依頼するか、無制限プランにアップグレードしましょう。',
+      freePlanRefreshInfo: '上限は毎週リセットされ、管理者が手動で更新することも可能です。',
       draftStatusLoading: '下書きを読み込み中…',
       draftStatusEmpty: '下書きが選択されていません。',
       draftStatusLoaded: '編集中の下書き: {{title}}',
@@ -1261,18 +1235,13 @@ const translations: Record<Locale, TranslationDefinition> = {
         draftNotFound: '下書きが見つかりません。',
         draftLoaded: '下書きをエディターに読み込みました。',
         draftLoadFailed: '下書きを読み込めませんでした。',
-        missingTitle: 'ドキュメントタイトルを入力してください。',
         draftUpdated: '下書きを更新しました。',
         draftCreated: '下書きを作成しました。',
         draftSaveFailed: '下書きを保存できませんでした。もう一度お試しください。',
         saveBeforePdf: 'PDFを生成する前に下書きを保存してください。',
         missingEntitlements: '権限データが不足しています。ページを再読み込みしてください。',
         downloadLimitReached:
-          '今週のダウンロード枠を使い切りました。サブスク登録、トークンの利用、または管理者へのリセット依頼をご検討ください。',
-        downloadTokensAvailable: '今週分のダウンロードは完了しています。リフレッシュ前にトークンを利用すると続行できます。',
-        tokenRedeemed: 'トークンを使用してダウンロード枠を1件追加しました。',
-        tokenRedeemFailed: 'トークンを使用できませんでした。時間をおいて再度お試しください。',
-        noTokens: '利用可能なトークンがありません。',
+          '今週のダウンロード枠を使い切りました。アップグレードするか、管理者にリセットを依頼してください。',
         pdfSuccess: 'PDFを生成しました。',
         pdfFailed: 'PDFを生成できませんでした。',
         editorReset: 'テンプレートの初期状態にリセットしました。',
